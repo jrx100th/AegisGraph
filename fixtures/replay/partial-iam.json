@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "source": "sanitized-partial-example",
+  "account": "333333333333",
+  "regions": ["us-east-1"],
+  "region_pages": {"us-east-1":[{}]},
+  "iam_pages": [{"error_code":"AccessDenied"}],
+  "s3_pages": [],
+  "rds_pages": {"us-east-1":[]},
+  "lambda_pages": {"us-east-1":[]}
+}
