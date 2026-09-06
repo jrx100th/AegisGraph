@@ -122,7 +122,7 @@ func openDB(path string) (*sql.DB, error) {
 func migrate(db *sql.DB) error {
 	ddl := []string{
 		"CREATE TABLE IF NOT EXISTS schema_migrations(version INTEGER PRIMARY KEY)",
-		"CREATE TABLE IF NOT EXISTS scans(id INTEGER PRIMARY KEY AUTOINCREMENT, environment TEXT NOT NULL, status TEXT NOT NULL, created_at TEXT NOT NULL)",
+		"CREATE TABLE IF NOT EXISTS scans(id INTEGER PRIMARY KEY AUTOINCREMENT, environment TEXT NOT NULL, status TEXT NOT NULL, account_id TEXT, started_at TEXT, ended_at TEXT, created_at TEXT NOT NULL)",
 		"CREATE TABLE IF NOT EXISTS nodes(id INTEGER PRIMARY KEY AUTOINCREMENT, scan_id INTEGER NOT NULL REFERENCES scans(id) ON DELETE CASCADE, node_key TEXT NOT NULL, node_type TEXT NOT NULL, name TEXT NOT NULL, account_id TEXT, region TEXT, properties TEXT NOT NULL, UNIQUE(scan_id,node_key))",
 		"CREATE TABLE IF NOT EXISTS edges(id INTEGER PRIMARY KEY AUTOINCREMENT, scan_id INTEGER NOT NULL REFERENCES scans(id) ON DELETE CASCADE, source_key TEXT NOT NULL, destination_key TEXT NOT NULL, edge_type TEXT NOT NULL, evidence TEXT NOT NULL, UNIQUE(scan_id,source_key,destination_key,edge_type))",
 		"CREATE TABLE IF NOT EXISTS findings(id INTEGER PRIMARY KEY AUTOINCREMENT, scan_id INTEGER NOT NULL REFERENCES scans(id) ON DELETE CASCADE, rule_id TEXT NOT NULL, severity TEXT NOT NULL, title TEXT NOT NULL, node_key TEXT NOT NULL, rationale TEXT NOT NULL, evidence TEXT NOT NULL, remediation TEXT NOT NULL, risk INTEGER NOT NULL)",
@@ -138,6 +138,12 @@ func migrate(db *sql.DB) error {
 	for _, statement := range ddl {
 		if _, err := db.Exec(statement); err != nil { return err }
 	}
+	for _, column := range []string{"account_id TEXT","started_at TEXT","ended_at TEXT"} {
+		if _, err := db.Exec("ALTER TABLE scans ADD COLUMN "+column); err != nil && !strings.Contains(strings.ToLower(err.Error()),"duplicate column") {
+			return err
+		}
+	}
+	if _, err := db.Exec("CREATE TABLE IF NOT EXISTS current_scan(id INTEGER PRIMARY KEY CHECK(id=1), scan_id INTEGER NOT NULL REFERENCES scans(id))"); err != nil { return err }
 	return nil
 }
 
