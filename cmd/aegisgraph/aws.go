@@ -264,7 +264,14 @@ func securityGroupIDs(groups []ec2types.GroupIdentifier) []string {
 
 func buildRouteState(routes []ec2types.RouteTable, igws []ec2types.InternetGateway) (map[string]bool,bool) {
 	out:=map[string]bool{}
+	attachedVPCs:=map[string]bool{}
+	for _,igw:=range igws {
+		for _,attachment:=range igw.Attachments {
+			if vpc:=aws.ToString(attachment.VpcId);vpc!="" { attachedVPCs[vpc]=true }
+		}
+	}
 	for _,table:=range routes {
+		if vpc:=aws.ToString(table.VpcId);vpc!="" && !attachedVPCs[vpc] { continue }
 		hasIGW:=false
 		for _,route:=range table.Routes {
 			if aws.ToString(route.DestinationCidrBlock)=="0.0.0.0/0" && strings.HasPrefix(aws.ToString(route.GatewayId),"igw-") { hasIGW=true }
@@ -325,9 +332,10 @@ func (c *liveAWSClient) loadRoles(ctx context.Context) ([]ReplayRole,error) {
 			if name==""{continue}
 			policies,policyErr:=c.rolePolicies(ctx,name)
 			trust,trustErr:=parseTrustPolicy(aws.ToString(role.AssumeRolePolicyDocument))
-			out=append(out,ReplayRole{Name:name,ARN:aws.ToString(role.Arn),Policies:policies,Trust:trust})
-			if policyErr!=nil{return out,policyErr}
-			if trustErr!=nil{return out,trustErr}
+			item:=ReplayRole{Name:name,ARN:aws.ToString(role.Arn),Policies:policies,Trust:trust}
+			if policyErr!=nil { item.Policies=nil; item.UnsupportedCondition=true; out=append(out,item); return out,policyErr }
+			if trustErr!=nil { item.Policies=nil; item.UnsupportedCondition=true; out=append(out,item); return out,trustErr }
+			out=append(out,item)
 		}
 		if aws.ToString(page.Marker)==""{break};token=page.Marker
 	}
@@ -344,7 +352,8 @@ func (c *liveAWSClient) rolePolicies(ctx context.Context,roleName string)([]Poli
 			policy,err:=c.iamClient.GetRolePolicy(ctx,&iam.GetRolePolicyInput{RoleName:aws.String(roleName),PolicyName:aws.String(name)})
 			if err!=nil{return out,err}
 			parsed,unsupported,err:=parsePolicyDocument(aws.ToString(policy.PolicyDocument))
-			if unsupported||err!=nil{if err!=nil{return out,err};continue}
+			if err!=nil{return out,err}
+			if unsupported{return out,errors.New("unsupported IAM policy condition")}
 			out=append(out,parsed...)
 		}
 		if aws.ToString(page.Marker)==""{break};token=page.Marker
@@ -411,8 +420,9 @@ func (c *liveAWSClient) managedPolicyDocument(ctx context.Context,arn string)([]
 	version,err:=c.iamClient.GetPolicyVersion(ctx,&iam.GetPolicyVersionInput{PolicyArn:aws.String(arn),VersionId:policy.Policy.DefaultVersionId})
 	if err!=nil{return nil,err}
 	parsed,unsupported,err:=parsePolicyDocument(aws.ToString(version.PolicyVersion.Document))
-	if unsupported{return nil,nil}
-	return parsed,err
+	if err!=nil{return nil,err}
+	if unsupported{return nil,errors.New("unsupported IAM policy condition")}
+	return parsed,nil
 }
 
 func parsePolicyDocument(raw string)([]Policy,bool,error) {
@@ -452,8 +462,9 @@ func parseTrustPolicy(raw string)([]string,error) {
 	if len(document.Statement)>0 && document.Statement[0]=='[' { _=json.Unmarshal(document.Statement,&statements) } else if len(document.Statement)>0 {statements=[]json.RawMessage{document.Statement}}
 	var out []string
 	for _,rawStatement:=range statements {
-		var statement struct{Principal json.RawMessage}
+		var statement struct{Principal json.RawMessage;Condition json.RawMessage}
 		if err:=json.Unmarshal(rawStatement,&statement);err!=nil{return nil,err}
+		if len(statement.Condition)>0 && string(statement.Condition)!="null" { return nil,errors.New("unsupported trust policy condition") }
 		var principal struct{AWS json.RawMessage}
 		if json.Unmarshal(statement.Principal,&principal)!=nil{continue}
 		for _,arn:=range jsonStrings(principal.AWS){if strings.Contains(arn,":role/"){out=append(out,roleNameFromARN(arn))}}
