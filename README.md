@@ -41,7 +41,7 @@ Supported demo environments are secure, exposed, attack-path, and false-positive
 
 ## AWS status
 
-The current public repository deliberately does not claim live AWS discovery. The endpoint is reserved at POST /api/scans/aws and returns an explicit NOT_IMPLEMENTED response. Read-only AWS SDK collectors must be added and independently verified before that endpoint is enabled. No credentials are accepted or persisted by the current build.
+The current repository includes a bounded partial AWS inventory collector at POST /api/scans/aws. It uses the normal AWS SDK credential chain and read-only STS/EC2 calls for caller identity, enabled regions, VPCs, subnets, route tables, Internet Gateways, security groups, and instances. It reports PARTIAL coverage and does not yet assert live IAM findings, S3/RDS/Lambda findings, or complete network semantics. No credentials are persisted.
 
 ## Truthfulness boundary
 
