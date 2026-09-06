@@ -233,9 +233,9 @@ func makeReplayScenario(name string) ReplayScenario {
 	case "missing-arn":c.S3Pages[0].Buckets[0].Name="";s.ExpectPartial=true
 	case "missing-region":c.S3Pages[0].Buckets[0].Region="";s.ExpectPartial=true
 	case "empty-page":c.RegionPages["ap-south-1"]=append([]ReplayRegionPage{{}},c.RegionPages["ap-south-1"]...);s.ExpectPartial=false
-	case "out-of-order-pages":c.RegionPages["ap-south-1"]=append(c.RegionPages["ap-south-1"],ReplayRegionPage{VPCs:[]ReplayVPC{{ID:"vpc-second",Name:"second"}}})
 	case "initial-scan","identical-rescan","updated-resource","resource-disappears-complete","resource-disappears-partial":s.Class="lifecycle"
 	}
+	if name=="out-of-order-pages"{c.RegionPages["ap-south-1"]=append(c.RegionPages["ap-south-1"],ReplayRegionPage{VPCs:[]ReplayVPC{{ID:"vpc-second",Name:"second"}}})}
 	if name=="internet-sensitive-s3"||name=="internet-privileged-role"||name=="assume-role-chain"||name=="role-chain-sensitive"{addSensitiveAllow(c)}
 	if name=="internet-denied-sensitive-s3"{makePublicSSH(c);addSensitiveDeny(c)}
 	if name=="public-ssh"{s.ExpectRule="AG-NET-001"}
