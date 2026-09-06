@@ -76,6 +76,10 @@ type Coverage struct {
 }
 type Snapshot struct {
 	Environment string
+	Account string
+	Status string
+	StartedAt string
+	EndedAt string
 	Nodes []Node
 	Edges []Edge
 	Findings []Finding
