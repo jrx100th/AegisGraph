@@ -197,14 +197,14 @@ func makeReplayScenario(name string) ReplayScenario {
 	case "missing-security-group-data":makePublicSSH(c);c.RegionPages["ap-south-1"][0].SecurityGroups=nil;s.ExpectPartial=true
 	case "ipv6-present":makePublicSSH(c);c.RegionPages["ap-south-1"][0].Instances[0].IPv6=true;s.ExpectPartial=true
 	case "nacl-uncertainty":makePublicSSH(c);s.ExpectPartial=true
-	case "simple-allow","inline-policy","managed-policy","trust-positive","internet-sensitive-s3","internet-privileged-role","assume-role-chain","assume-role-chain","role-chain-sensitive":addSensitiveAllow(c)
+	case "simple-allow","inline-policy","managed-policy","trust-positive","internet-sensitive-s3","internet-privileged-role","assume-role-chain","role-chain-sensitive":addSensitiveAllow(c)
 	case "simple-deny","wildcard-allow-explicit-deny","internet-denied-sensitive-s3":addSensitiveDeny(c)
 	case "wildcard-allow":addWildcardAllow(c);s.ExpectRule="AG-IAM-001"
 	case "action-mismatch","resource-mismatch","trust-negative","cross-account-trust","permission-boundary","scp-relevance":s.ExpectPartial=true
 	case "cyclic-trust","role-cycle-sensitive":addRoleCycle(c);s.ExpectPartial=true
 	case "malformed-policy":c.IAMPages[0].Roles[0].Malformed=true;s.ExpectPartial=true
 	case "unsupported-condition":c.IAMPages[0].Roles[0].UnsupportedCondition=true;s.ExpectPartial=true
-	case "internet-sensitive-s3","internet-privileged-role","assume-role-chain","role-chain-sensitive":s.ExpectPath=true
+	case "internet-privileged-role","assume-role-chain","role-chain-sensitive":s.ExpectPath=true
 	case "region-access-denied":c.Regions=[]string{"ap-south-1","us-east-1"};c.RegionPages["us-east-1"]=[]ReplayRegionPage{{ErrorCode:"AccessDenied"}};s.ExpectPartial=true
 	case "iam-access-denied":c.IAMPages=[]ReplayIAMPage{{ErrorCode:"AccessDenied"}};s.ExpectPartial=true
 	case "s3-access-denied":c.S3Pages=[]ReplayS3Page{{ErrorCode:"AccessDenied"}};s.ExpectPartial=true
