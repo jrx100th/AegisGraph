@@ -37,4 +37,4 @@ The false-positive fixture has the same public address and ingress but lacks the
 
 ## Environment limitation
 
-This Work container does not have Go, Docker, or SQLite command-line tooling installed. Therefore local test, race, benchmark, Docker, and clean-install results are not claimed. GitHub Actions is configured to run the backend and frontend checks in a tool-equipped environment.
+The Work container does not have Go, Docker, or SQLite command-line tooling installed, so local execution was not claimed. GitHub Actions run 34027210902 passed Go vet, Go tests, race tests, microbenchmarks, frontend install, and frontend production build. The recorded microbenchmarks were BenchmarkDemoSnapshot 750.4 ns/op and BenchmarkNetworkReachability 63.36 ns/op on the hosted Go 1.22 runner. Docker and clean-install execution remain unverified in this Work session.
