@@ -173,20 +173,82 @@ func hasPartialCoverageAny(c []Coverage) bool {for _,x:=range c{if x.State=="PAR
 
 func normalizeRegionPage(account,region string,page ReplayRegionPage,out *Snapshot) {
 	vpcKeys:=map[string]string{}
-	for _,v:=range page.VPCs {key:="aws:vpc:"+account+":"+region+":"+v.ID;vpcKeys[v.ID]=key;out.Nodes=append(out.Nodes,Node{Key:key,Type:"VPC",Name:v.Name,Account:account,Region:region});out.Edges=append(out.Edges,Edge{From:"aws:account:"+account,To:key,Type:"CONTAINS",Evidence:"Replay EC2 VPC response"})}
+	for _,v:=range page.VPCs {
+		key:="aws:vpc:"+account+":"+region+":"+v.ID
+		vpcKeys[v.ID]=key
+		out.Nodes=append(out.Nodes,Node{Key:key,Type:"VPC",Name:v.Name,Account:account,Region:region,RouteKnown:true})
+		out.Edges=append(out.Edges,Edge{From:"aws:account:"+account,To:key,Type:"CONTAINS",Evidence:"Replay EC2 VPC response"})
+	}
 	subnetKeys:=map[string]string{}
-	for _,sub:=range page.Subnets {key:="aws:subnet:"+account+":"+region+":"+sub.ID;subnetKeys[sub.ID]=key;out.Nodes=append(out.Nodes,Node{Key:key,Type:"SUBNET",Name:sub.Name,Account:account,Region:region,RouteIGW:sub.RouteIGW});if vk:=vpcKeys[sub.VPCID];vk!=""{out.Edges=append(out.Edges,Edge{From:vk,To:key,Type:"CONTAINS",Evidence:"Replay EC2 subnet response"})}}
+	for _,sub:=range page.Subnets {
+		key:="aws:subnet:"+account+":"+region+":"+sub.ID
+		subnetKeys[sub.ID]=key
+		out.Nodes=append(out.Nodes,Node{Key:key,Type:"SUBNET",Name:sub.Name,Account:account,Region:region,RouteIGW:sub.RouteIGW,RouteKnown:sub.RouteKnown})
+		if vk:=vpcKeys[sub.VPCID];vk!=""{out.Edges=append(out.Edges,Edge{From:vk,To:key,Type:"CONTAINS",Evidence:"Replay EC2 subnet response"})}
+	}
 	sgIngress:=map[string][]Ingress{}
-	for _,sg:=range page.SecurityGroups {key:="aws:security-group:"+account+":"+region+":"+sg.ID;out.Nodes=append(out.Nodes,Node{Key:key,Type:"SECURITY_GROUP",Name:sg.Name,Account:account,Region:region});sgIngress[sg.ID]=append([]Ingress{},sg.Ingress...);if vk:=vpcKeys[sg.VPCID];vk!=""{out.Edges=append(out.Edges,Edge{From:vk,To:key,Type:"CONTAINS",Evidence:"Replay EC2 security-group response"})}}
-	for _,instance:=range page.Instances {key:="aws:ec2:"+account+":"+region+":"+instance.ID;ingress:=[]Ingress{};for _,sg:=range instance.SecurityGroupIDs{ingress=append(ingress,sgIngress[sg]...)};out.Nodes=append(out.Nodes,Node{Key:key,Type:"EC2",Name:instance.Name,Account:account,Region:region,PublicIP:instance.PublicIP,RouteIGW:subnetRoute(page.Subnets,instance.SubnetID),Ingress:ingress});if sk:=subnetKeys[instance.SubnetID];sk!=""{out.Edges=append(out.Edges,Edge{From:sk,To:key,Type:"CONTAINS",Evidence:"Replay EC2 instance response"})};for _,sg:=range instance.SecurityGroupIDs{out.Edges=append(out.Edges,Edge{From:key,To:"aws:security-group:"+account+":"+region+":"+sg,Type:"USES_SECURITY_GROUP",Evidence:"Replay instance security-group attachment"})};if instance.RoleName!=""{out.Edges=append(out.Edges,Edge{From:key,To:"aws:role:"+account+":"+instance.RoleName,Type:"RUNS_AS",Evidence:"Replay instance profile attachment"})}}
-	for _,db:=range page.RDS{normalizeRDS(account,region,db,out)}
+	for _,sg:=range page.SecurityGroups {
+		key:="aws:security-group:"+account+":"+region+":"+sg.ID
+		out.Nodes=append(out.Nodes,Node{Key:key,Type:"SECURITY_GROUP",Name:sg.Name,Account:account,Region:region})
+		sgIngress[sg.ID]=append([]Ingress{},sg.Ingress...)
+		if vk:=vpcKeys[sg.VPCID];vk!=""{out.Edges=append(out.Edges,Edge{From:vk,To:key,Type:"CONTAINS",Evidence:"Replay EC2 security-group response"})}
+	}
+	for _,instance:=range page.Instances {
+		key:="aws:ec2:"+account+":"+region+":"+instance.ID
+		ingress:=[]Ingress{}
+		for _,sg:=range instance.SecurityGroupIDs{ingress=append(ingress,sgIngress[sg]...)}
+		route,routeKnown:=subnetRouteState(page.Subnets,instance.SubnetID)
+		roleName:=instance.RoleName
+		if roleName=="" { roleName=instance.InstanceProfileName }
+		out.Nodes=append(out.Nodes,Node{Key:key,Type:"EC2",Name:instance.Name,Account:account,Region:region,PublicIP:instance.PublicIP,PublicKnown:true,RouteIGW:route,RouteKnown:routeKnown,Ingress:ingress})
+		if sk:=subnetKeys[instance.SubnetID];sk!=""{out.Edges=append(out.Edges,Edge{From:sk,To:key,Type:"CONTAINS",Evidence:"Replay EC2 instance response"})}
+		for _,sg:=range instance.SecurityGroupIDs{out.Edges=append(out.Edges,Edge{From:key,To:"aws:security-group:"+account+":"+region+":"+sg,Type:"USES_SECURITY_GROUP",Evidence:"Replay instance security-group attachment"})}
+		if roleName!=""{out.Edges=append(out.Edges,Edge{From:key,To:"aws:role:"+account+":"+roleName,Type:"RUNS_AS",Evidence:"Replay instance profile attachment"})}
+	}
+	for _,db:=range page.RDS{
+		if len(db.SecurityGroupIDs)>0 {
+			db.Ingress=nil
+			for _,sg:=range db.SecurityGroupIDs { db.Ingress=append(db.Ingress,sgIngress[sg]...) }
+		}
+		normalizeRDS(account,region,db,out)
+	}
 	for _,fn:=range page.Lambda{normalizeLambda(account,region,fn,out)}
 }
-func subnetRoute(subnets []ReplaySubnet,id string) bool {for _,s:=range subnets{if s.ID==id{return s.RouteKnown&&s.RouteIGW}};return false}
-func normalizeRole(account string,role ReplayRole,out *Snapshot) {key:="aws:role:"+account+":"+role.Name;out.Nodes=append(out.Nodes,Node{Key:key,Type:"IAM_ROLE",Name:role.Name,Account:account,Policies:append([]Policy{},role.Policies...)});for _,target:=range role.Trust{out.Edges=append(out.Edges,Edge{From:key,To:"aws:role:"+target,Type:"CAN_ASSUME",Evidence:"Replay role trust response"})};for _,target:=range role.AttachTo{out.Edges=append(out.Edges,Edge{From:"aws:ec2:"+account+":"+target,To:key,Type:"RUNS_AS",Evidence:"Replay role attachment"})}}
-func normalizePolicy(account string,policy ReplayPolicy,out *Snapshot){for _,role:=range policy.AttachedRoleNames{for i:=range out.Nodes{if out.Nodes[i].Key=="aws:role:"+account+":"+role{out.Nodes[i].Policies=append(out.Nodes[i].Policies,policy.Document...)}}}}
-func normalizeRDS(account,region string,db ReplayRDS,out *Snapshot){key:="aws:rds:"+account+":"+region+":"+db.ID;out.Nodes=append(out.Nodes,Node{Key:key,Type:"RDS",Name:db.Name,Account:account,Region:region,PublicIP:db.Public,RouteIGW:db.Public,Ingress:db.Ingress,Sensitive:db.Sensitive})}
-func normalizeLambda(account,region string,fn ReplayLambda,out *Snapshot){key:="aws:lambda:"+account+":"+region+":"+fn.ID;out.Nodes=append(out.Nodes,Node{Key:key,Type:"LAMBDA",Name:fn.Name,Account:account,Region:region});if fn.RoleName!=""{out.Edges=append(out.Edges,Edge{From:key,To:"aws:role:"+account+":"+fn.RoleName,Type:"RUNS_AS",Evidence:"Replay Lambda execution role"})}}
+func subnetRouteState(subnets []ReplaySubnet,id string) (bool,bool) {
+	for _,s:=range subnets{if s.ID==id{return s.RouteIGW,s.RouteKnown}}
+	return false,false
+}
+func subnetRoute(subnets []ReplaySubnet,id string) bool {route,_:=subnetRouteState(subnets,id);return route}
+func normalizeUser(account string,user ReplayUser,out *Snapshot) {
+	key:="aws:user:"+account+":"+user.Name
+	out.Nodes=append(out.Nodes,Node{Key:key,Type:"IAM_USER",Name:user.Name,Account:account})
+}
+func normalizeInstanceProfile(account string,profile ReplayInstanceProfile,out *Snapshot) {
+	key:="aws:instance-profile:"+account+":"+profile.Name
+	out.Nodes=append(out.Nodes,Node{Key:key,Type:"INSTANCE_PROFILE",Name:profile.Name,Account:account})
+	for _,role:=range profile.RoleNames {
+		out.Edges=append(out.Edges,Edge{From:key,To:"aws:role:"+account+":"+role,Type:"ATTACHED_TO",Evidence:"Replay instance profile role association"})
+	}
+}
+func normalizeRole(account string,role ReplayRole,out *Snapshot) {
+	key:="aws:role:"+account+":"+role.Name
+	out.Nodes=append(out.Nodes,Node{Key:key,Type:"IAM_ROLE",Name:role.Name,Account:account,Policies:append([]Policy{},role.Policies...)})
+	for _,target:=range role.Trust{out.Edges=append(out.Edges,Edge{From:key,To:"aws:role:"+account+":"+target,Type:"CAN_ASSUME",Evidence:"Replay role trust response"})}
+	for _,target:=range role.AttachTo{out.Edges=append(out.Edges,Edge{From:"aws:ec2:"+account+":"+target,To:key,Type:"RUNS_AS",Evidence:"Replay role attachment"})}
+}
+func normalizePolicy(account string,policy ReplayPolicy,out *Snapshot){
+	for _,role:=range policy.AttachedRoleNames{for i:=range out.Nodes{if out.Nodes[i].Key=="aws:role:"+account+":"+role{out.Nodes[i].Policies=append(out.Nodes[i].Policies,policy.Document...)}}}
+}
+func normalizeRDS(account,region string,db ReplayRDS,out *Snapshot){
+	key:="aws:rds:"+account+":"+region+":"+db.ID
+	metadata:=map[string]string{"engine":db.Engine}
+	out.Nodes=append(out.Nodes,Node{Key:key,Type:"RDS",Name:db.Name,Account:account,Region:region,PublicIP:db.Public,PublicKnown:db.PublicKnown,RouteIGW:db.RouteIGW,RouteKnown:db.RouteKnown,Ingress:db.Ingress,Sensitive:db.Sensitive,Encrypted:db.Encrypted,EncryptionKnown:db.EncryptionKnown,Metadata:metadata})
+}
+func normalizeLambda(account,region string,fn ReplayLambda,out *Snapshot){
+	key:="aws:lambda:"+account+":"+region+":"+fn.ID
+	out.Nodes=append(out.Nodes,Node{Key:key,Type:"LAMBDA",Name:fn.Name,Account:account,Region:region,Metadata:map[string]string{"execution_role":fn.RoleName}})
+	if fn.RoleName!=""{out.Edges=append(out.Edges,Edge{From:key,To:"aws:role:"+account+":"+fn.RoleName,Type:"RUNS_AS",Evidence:"Replay Lambda execution role"})}
+}
 func hasCoverage(c []Coverage,service,state string) bool{for _,x:=range c{if x.Service==service&&x.State==state{return true}};return false}
 
 type ReplayScanLedger struct { Active map[string]Node }
