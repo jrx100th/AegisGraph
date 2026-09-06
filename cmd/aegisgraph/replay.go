@@ -133,16 +133,20 @@ func collectReplay(ctx context.Context,client ReplayClient) (ReplayResult,error)
 		if page.NextToken==""{break};iamToken=page.NextToken
 	}
 	if iamAttempted && !hasCoverage(out.Coverage,"iam","PARTIAL"){out.Coverage=append(out.Coverage,Coverage{"iam","COMPLETE","Replay pages consumed"})}
-	s3Token:=""
+	s3Token:="";s3Partial:=false
 	for {
 		page,e:=client.ListS3(ctx,s3Token)
-		if e!=nil {partial=true;out.Coverage=append(out.Coverage,Coverage{"s3","PARTIAL",e.Error()});break}
+		if e!=nil {partial=true;s3Partial=true;out.Coverage=append(out.Coverage,Coverage{"s3","PARTIAL",e.Error()});break}
+		if page.ErrorCode!="" { partial=true;s3Partial=true;out.Coverage=append(out.Coverage,Coverage{"s3","PARTIAL",page.ErrorCode}) }
 		for _,bucket:=range page.Buckets {
-			if bucket.Name=="" || bucket.Region=="" { partial=true; out.Coverage=append(out.Coverage,Coverage{"s3","PARTIAL","Bucket identity or region missing"}); if bucket.Name==""{continue} }
+			if bucket.Name=="" || bucket.Region=="" { partial=true;s3Partial=true;out.Coverage=append(out.Coverage,Coverage{"s3","PARTIAL","Bucket identity or region missing"}); if bucket.Name==""{continue} }
 			key:="aws:s3:"+account+":"+bucket.Name
-			out.Nodes=append(out.Nodes,Node{Key:key,Type:"S3_BUCKET",Name:bucket.Name,Account:account,Region:bucket.Region,PublicIP:bucket.Public,Sensitive:bucket.Sensitive})
+			metadata:=map[string]string{"public_access_known":fmt.Sprint(bucket.PublicAccessKnown),"public_access_blocked":fmt.Sprint(bucket.PublicAccessBlocked),"policy_known":fmt.Sprint(bucket.PolicyKnown),"encrypted":fmt.Sprint(bucket.Encrypted)}
+			publicKnown:=bucket.PublicAccessKnown && bucket.PolicyKnown
+			public:=publicKnown && !bucket.PublicAccessBlocked && bucket.PolicyPublic
+			out.Nodes=append(out.Nodes,Node{Key:key,Type:"S3_BUCKET",Name:bucket.Name,Account:account,Region:bucket.Region,Public:public,PublicKnown:publicKnown,Encrypted:bucket.Encrypted,EncryptionKnown:bucket.EncryptionKnown,Sensitive:bucket.Sensitive,Metadata:metadata})
 		}
-		if page.NextToken==""{out.Coverage=append(out.Coverage,Coverage{"s3","COMPLETE","Replay pages consumed"});break};s3Token=page.NextToken
+		if page.NextToken==""{if !s3Partial{out.Coverage=append(out.Coverage,Coverage{"s3","COMPLETE","Replay pages consumed"})};break};s3Token=page.NextToken
 	}
 	for _,region:=range regions {
 		token:="";for {
