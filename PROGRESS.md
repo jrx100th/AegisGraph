@@ -22,13 +22,13 @@ Repository: jrx100th/AegisGraph. Branch: main. Current milestone: v0.1 determini
 
 ## TEST STATUS
 
-The repository's GitHub Actions workflow runs gofmt, go vet, Go tests, race tests, Go microbenchmarks, and the frontend production build. The latest run status must be read from GitHub Actions before claiming a final pass. The Work container used for this session does not provide Go, Docker, or SQLite CLI tooling, so no local pass is claimed.
+GitHub Actions run 34030372218, job 101478659148, passed gofmt, go vet, Go tests, Go race tests, Go microbenchmarks, frontend install, and frontend production build. The Work container used for this session does not provide Go, Docker, or SQLite CLI tooling, so no local pass is claimed.
 
 The replay suite explicitly verifies 10 supported-risk cases and 13 false-positive traps. Synthetic results validate modeled behavior only and do not replace live AWS validation.
 
 ## BENCHMARK STATUS
 
-Previously recorded CI microbenchmarks: BenchmarkDemoSnapshot 750.4 ns/op, 3680 B/op, 16 allocs/op; BenchmarkNetworkReachability 63.36 ns/op, 112 B/op, 3 allocs/op on a hosted Go 1.22 runner. BenchmarkReplayCollection was added in this task; record its actual CI output before using it in release claims. No large-graph benchmark claim is made.
+Run 34030372218 measured BenchmarkDemoSnapshot at 3,208 ns/op, BenchmarkNetworkReachability at 100.5 ns/op, and BenchmarkReplayCollection at 5,193 ns/op. No large-graph benchmark claim is made.
 
 ## KNOWN BUGS
 
