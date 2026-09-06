@@ -1,26 +1,12 @@
 # AWS permissions
 
-The current partial collector uses the normal AWS SDK for Go credential chain and read-only calls only. It currently calls STS caller identity and EC2 regional inventory APIs. Before enabling additional services, each collector must preserve per-service coverage and partial-scan semantics.
-
-The intended initial permission families are:
+The live path uses the normal AWS SDK for Go credential provider chain. It performs read-only calls and does not persist credentials. Required calls depend on enabled regions and services:
 
 - sts:GetCallerIdentity
-- ec2:DescribeRegions
-- ec2:DescribeInstances
-- ec2:DescribeAddresses
-- ec2:DescribeVpcs
-- ec2:DescribeSubnets
-- ec2:DescribeRouteTables
-- ec2:DescribeInternetGateways
-- ec2:DescribeSecurityGroups
-- iam:ListUsers
-- iam:ListRoles
-- iam:ListPolicies
-- iam:ListInstanceProfiles
-- iam:ListRolePolicies
-- iam:ListUserPolicies
-- s3:ListAllMyBuckets
+- ec2:DescribeRegions, DescribeVpcs, DescribeSubnets, DescribeRouteTables, DescribeInternetGateways, DescribeSecurityGroups, DescribeInstances
+- iam:ListUsers, ListRoles, ListPolicies, ListInstanceProfiles, ListRolePolicies, GetRolePolicy, ListAttachedRolePolicies, ListUserPolicies, GetUserPolicy, ListAttachedUserPolicies, GetPolicy, GetPolicyVersion
+- s3:ListAllMyBuckets, GetBucketLocation, GetPublicAccessBlock, GetBucketPolicy, GetBucketEncryption, GetBucketTagging
 - rds:DescribeDBInstances
 - lambda:ListFunctions
 
-The current binary performs the STS and EC2 calls needed for the partial inventory described above. IAM, S3, RDS, and Lambda permissions remain design targets until their collectors are implemented and verified.
+Missing permissions are attributed to service or region and produce PARTIAL coverage. Exact service-specific authorization remains limited. The adapter is LIVE_AWS_IMPLEMENTED and LIVE_AWS_UNVERIFIED; no live account was used.
