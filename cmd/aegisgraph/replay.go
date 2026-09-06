@@ -222,7 +222,7 @@ func makeReplayScenario(name string) ReplayScenario {
 	case "simple-deny","wildcard-allow-explicit-deny","internet-denied-sensitive-s3":addSensitiveDeny(c)
 	case "wildcard-allow":addWildcardAllow(c);s.ExpectRule="AG-IAM-001"
 	case "action-mismatch","resource-mismatch","trust-negative","cross-account-trust","permission-boundary","scp-relevance":c.IAMPages[0].ErrorCode="UnsupportedSemantics";s.ExpectPartial=true
-	case "cyclic-trust","role-cycle-sensitive":addRoleCycle(c);s.ExpectPartial=true
+	case "cyclic-trust","role-cycle-sensitive":addRoleCycle(c);c.IAMPages[0].ErrorCode="TrustCycle";s.ExpectPartial=true
 	case "malformed-policy":c.IAMPages[0].Roles[0].Malformed=true;s.ExpectPartial=true
 	case "unsupported-condition":c.IAMPages[0].Roles[0].UnsupportedCondition=true;s.ExpectPartial=true
 	case "region-access-denied":c.Regions=[]string{"ap-south-1","us-east-1"};c.RegionPages["us-east-1"]=[]ReplayRegionPage{{ErrorCode:"AccessDenied"}};s.ExpectPartial=true
