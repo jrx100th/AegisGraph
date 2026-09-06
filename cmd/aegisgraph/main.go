@@ -352,7 +352,6 @@ func demoSnapshot(env string) Snapshot {
 		nodes=append([]Node{{Key:"external:internet",Type:"INTERNET",Name:"Internet"},},nodes...)
 	}
 	return analyzeSnapshot(Snapshot{Environment:env,Nodes:nodes,Edges:edges,Coverage:[]Coverage{{"demo","COMPLETE","Synthetic fixture; no AWS credentials or network required."}}})
-	return Snapshot{Environment:env,Nodes:nodes,Edges:edges,Findings:findings,Paths:paths,Coverage:[]Coverage{{"demo","COMPLETE","Synthetic fixture; no AWS credentials or network required."}}}
 }
 
 func networkReachable(n Node) (bool,[]string) {
