@@ -28,6 +28,14 @@ jobs:
         run: go test ./...
       - name: Go race tests
         run: go test -race ./...
+      - name: Go microbenchmarks
+        run: go test -run '^      - name: Frontend install
+        working-directory: frontend
+        run: npm install
+      - name: Frontend build
+        working-directory: frontend
+        run: npm run build
+ -bench '^Benchmark' -benchmem ./...
       - name: Frontend install
         working-directory: frontend
         run: npm install
