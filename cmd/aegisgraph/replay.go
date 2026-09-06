@@ -18,28 +18,28 @@ type ReplayServiceError struct { Code string; Message string }
 func (e ReplayServiceError) Error() string { return e.Code+": "+e.Message }
 
 type ReplayRegionPage struct {
-	VPCs []ReplayVPC
-	Subnets []ReplaySubnet
-	SecurityGroups []ReplaySecurityGroup
-	Instances []ReplayInstance
-	RDS []ReplayRDS
-	Lambda []ReplayLambda
-	NextToken string
-	ErrorCode string
+	VPCs []ReplayVPC `json:"vpcs"`
+	Subnets []ReplaySubnet `json:"subnets"`
+	SecurityGroups []ReplaySecurityGroup `json:"security_groups"`
+	Instances []ReplayInstance `json:"instances"`
+	RDS []ReplayRDS `json:"rds"`
+	Lambda []ReplayLambda `json:"lambda"`
+	NextToken string `json:"next_token"`
+	ErrorCode string `json:"error_code"`
 }
-type ReplayVPC struct { ID string; Name string }
-type ReplaySubnet struct { ID string; VPCID string; Name string; RouteIGW bool; RouteKnown bool }
-type ReplaySecurityGroup struct { ID string; Name string; VPCID string; Ingress []Ingress; Present bool }
-type ReplayInstance struct { ID string; Name string; SubnetID string; SecurityGroupIDs []string; PublicIP bool; PublicKnown bool; IPv6 bool; RoleName string; InstanceProfileName string }
-type ReplayRDS struct { ID string; Name string; Engine string; SubnetID string; SubnetIDs []string; Public bool; PublicKnown bool; RouteIGW bool; RouteKnown bool; SecurityGroupIDs []string; Ingress []Ingress; Sensitive bool; Encrypted bool; EncryptionKnown bool }
-type ReplayLambda struct { ID string; Name string; RoleName string }
-type ReplayIAMPage struct { Users []ReplayUser; Roles []ReplayRole; InstanceProfiles []ReplayInstanceProfile; Policies []ReplayPolicy; NextToken string; ErrorCode string }
-type ReplayRole struct { Name string; ARN string; Account string; Policies []Policy; Trust []string; AttachTo []string; Malformed bool; UnsupportedCondition bool }
-type ReplayUser struct { Name string; ARN string; Account string; Policies []Policy }\ntype ReplayInstanceProfile struct { Name string; ARN string; Account string; RoleNames []string }\ntype ReplayPolicy struct { Name string; ARN string; Account string; Document []Policy; AttachedRoleNames []string; AttachedUserNames []string; Malformed bool; UnsupportedCondition bool }
-type ReplayS3Page struct { Buckets []ReplayBucket; NextToken string; ErrorCode string }
-type ReplayBucket struct { Name string; Region string; Public bool; PublicKnown bool; PublicAccessBlocked bool; PublicAccessKnown bool; PolicyKnown bool; PolicyPublic bool; Encrypted bool; EncryptionKnown bool; Sensitive bool }
-type ReplayLambdaPage struct { Functions []ReplayLambda; NextToken string; ErrorCode string }
-type ReplayRDSPage struct { Instances []ReplayRDS; NextToken string; ErrorCode string }
+type ReplayVPC struct { ID string `json:"id"`; Name string `json:"name"` }
+type ReplaySubnet struct { ID string `json:"id"`; VPCID string `json:"vpc_id"`; Name string `json:"name"`; RouteIGW bool `json:"route_igw"`; RouteKnown bool `json:"route_known"` }
+type ReplaySecurityGroup struct { ID string `json:"id"`; Name string `json:"name"`; VPCID string `json:"vpc_id"`; Ingress []Ingress `json:"ingress"`; Present bool `json:"present"` }
+type ReplayInstance struct { ID string `json:"id"`; Name string `json:"name"`; SubnetID string `json:"subnet_id"`; SecurityGroupIDs []string `json:"security_group_ids"`; PublicIP bool `json:"public_ip"`; PublicKnown bool `json:"public_known"`; IPv6 bool `json:"ipv6"`; RoleName string `json:"role_name"`; InstanceProfileName string `json:"instance_profile_name"` }
+type ReplayRDS struct { ID string `json:"id"`; Name string `json:"name"`; Engine string `json:"engine"`; SubnetID string `json:"subnet_id"`; SubnetIDs []string `json:"subnet_ids"`; Public bool `json:"public"`; PublicKnown bool `json:"public_known"`; RouteIGW bool `json:"route_igw"`; RouteKnown bool `json:"route_known"`; SecurityGroupIDs []string `json:"security_group_ids"`; Ingress []Ingress `json:"ingress"`; Sensitive bool `json:"sensitive"`; Encrypted bool `json:"encrypted"`; EncryptionKnown bool `json:"encryption_known"` }
+type ReplayLambda struct { ID string `json:"id"`; Name string `json:"name"`; RoleName string `json:"role_name"` }
+type ReplayIAMPage struct { Users []ReplayUser `json:"users"`; Roles []ReplayRole `json:"roles"`; InstanceProfiles []ReplayInstanceProfile `json:"instance_profiles"`; Policies []ReplayPolicy `json:"policies"`; NextToken string `json:"next_token"`; ErrorCode string `json:"error_code"` }
+type ReplayRole struct { Name string `json:"name"`; ARN string `json:"arn"`; Account string `json:"account"`; Policies []Policy `json:"policies"`; Trust []string `json:"trust"`; AttachTo []string `json:"attach_to"`; Malformed bool `json:"malformed"`; UnsupportedCondition bool `json:"unsupported_condition"` }
+type ReplayUser struct { Name string `json:"name"`; ARN string `json:"arn"`; Account string `json:"account"`; Policies []Policy `json:"policies"` }\ntype ReplayInstanceProfile struct { Name string `json:"name"`; ARN string `json:"arn"`; Account string `json:"account"`; RoleNames []string `json:"role_names"` }\ntype ReplayPolicy struct { Name string `json:"name"`; ARN string `json:"arn"`; Account string `json:"account"`; Document []Policy `json:"document"`; AttachedRoleNames []string `json:"attached_role_names"`; AttachedUserNames []string `json:"attached_user_names"`; Malformed bool `json:"malformed"`; UnsupportedCondition bool `json:"unsupported_condition"` }
+type ReplayS3Page struct { Buckets []ReplayBucket `json:"buckets"`; NextToken string `json:"next_token"`; ErrorCode string `json:"error_code"` }
+type ReplayBucket struct { Name string `json:"name"`; Region string `json:"region"`; Public bool `json:"public"`; PublicKnown bool `json:"public_known"`; PublicAccessBlocked bool `json:"public_access_blocked"`; PublicAccessKnown bool `json:"public_access_known"`; PolicyKnown bool `json:"policy_known"`; PolicyPublic bool `json:"policy_public"`; Encrypted bool `json:"encrypted"`; EncryptionKnown bool `json:"encryption_known"`; Sensitive bool `json:"sensitive"` }
+type ReplayLambdaPage struct { Functions []ReplayLambda `json:"functions"`; NextToken string `json:"next_token"`; ErrorCode string `json:"error_code"` }
+type ReplayRDSPage struct { Instances []ReplayRDS `json:"instances"`; NextToken string `json:"next_token"`; ErrorCode string `json:"error_code"` }
 
 type ReplayClient interface {
 	GetCallerIdentity(context.Context) (string,error)
