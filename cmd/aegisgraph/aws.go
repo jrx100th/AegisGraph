@@ -68,7 +68,7 @@ func collectAWSRegion(ctx context.Context,cfg aws.Config,account,region string,s
 	igwByVpc:=map[string]bool{}
 	for _,igw:=range igwsOut.InternetGateways {
 		for _,a:=range igw.Attachments {
-			if aws.ToString(a.State)=="available" && aws.ToString(a.VpcId)!="" { igwByVpc[aws.ToString(a.VpcId)]=true }
+			if string(a.State)=="available" && aws.ToString(a.VpcId)!="" { igwByVpc[aws.ToString(a.VpcId)]=true }
 		}
 	}
 	routeBySubnet:=map[string]bool{}
