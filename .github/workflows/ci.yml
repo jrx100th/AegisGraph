@@ -36,3 +36,23 @@ jobs:
       - name: Frontend build
         working-directory: frontend
         run: npm run build
+
+      - name: Build backend
+        run: go build -trimpath -o /tmp/aegisgraph ./cmd/aegisgraph
+      - name: Application startup smoke
+        run: |
+          mkdir -p /tmp/aegisgraph-static
+          printf '<!doctype html><title>AegisGraph</title>' > /tmp/aegisgraph-static/index.html
+          /tmp/aegisgraph -addr 127.0.0.1:18080 -static /tmp/aegisgraph-static -db /tmp/aegisgraph.db >/tmp/aegisgraph.log 2>&1 &
+          pid=$!
+          trap 'kill $pid' EXIT
+          for attempt in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:18080/api/health >/tmp/aegisgraph-health.json; then break; fi
+            sleep 1
+          done
+          test -s /tmp/aegisgraph-health.json
+          curl -fsS -X POST 'http://127.0.0.1:18080/api/demo/load?environment=attack-path' >/tmp/aegisgraph-demo.json
+          curl -fsS http://127.0.0.1:18080/api/findings >/tmp/aegisgraph-findings.json
+          curl -fsS http://127.0.0.1:18080/api/attack-paths >/tmp/aegisgraph-paths.json
+      - name: Docker build
+        run: docker build -t aegisgraph:ci .
