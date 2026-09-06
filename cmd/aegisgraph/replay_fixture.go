@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -54,7 +55,10 @@ func (f ReplayFixture) Client() (*SimulatedAWS,error) {
 
 func LoadReplayFixture(r io.Reader) (*SimulatedAWS,error) {
 	if r==nil{return nil,errors.New("fixture reader is nil")}
-	dec:=json.NewDecoder(io.LimitReader(r,maxReplayFixtureBytes))
+	raw,err:=io.ReadAll(io.LimitReader(r,maxReplayFixtureBytes+1))
+	if err!=nil{return nil,fmt.Errorf("read replay fixture: %w",err)}
+	if int64(len(raw))>maxReplayFixtureBytes{return nil,fmt.Errorf("replay fixture exceeds %d bytes",maxReplayFixtureBytes)}
+	dec:=json.NewDecoder(bytes.NewReader(raw))
 	dec.DisallowUnknownFields()
 	var fixture ReplayFixture
 	if err:=dec.Decode(&fixture);err!=nil{return nil,fmt.Errorf("decode replay fixture: %w",err)}
