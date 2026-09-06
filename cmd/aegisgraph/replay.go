@@ -240,6 +240,7 @@ func normalizeRole(account string,role ReplayRole,out *Snapshot) {
 }
 func normalizePolicy(account string,policy ReplayPolicy,out *Snapshot){
 	for _,role:=range policy.AttachedRoleNames{for i:=range out.Nodes{if out.Nodes[i].Key=="aws:role:"+account+":"+role{out.Nodes[i].Policies=append(out.Nodes[i].Policies,policy.Document...)}}}
+	for _,user:=range policy.AttachedUserNames{for i:=range out.Nodes{if out.Nodes[i].Key=="aws:user:"+account+":"+user{out.Nodes[i].Policies=append(out.Nodes[i].Policies,policy.Document...)}}}
 }
 func normalizeRDS(account,region string,db ReplayRDS,out *Snapshot){
 	key:="aws:rds:"+account+":"+region+":"+db.ID
