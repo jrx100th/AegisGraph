@@ -120,6 +120,7 @@ func collectReplay(ctx context.Context,client ReplayClient) (ReplayResult,error)
 	for {
 		iamAttempted=true;page,e:=client.ListIAM(ctx,iamToken)
 		if e!=nil {partial=true;out.Coverage=append(out.Coverage,Coverage{"iam","PARTIAL",e.Error()});break}
+		if page.ErrorCode!="" { partial=true; out.Coverage=append(out.Coverage,Coverage{"iam","PARTIAL",page.ErrorCode}) }
 		for _,user:=range page.Users { normalizeUser(account,user,&out) }
 		for _,profile:=range page.InstanceProfiles { normalizeInstanceProfile(account,profile,&out) }
 		for _,role:=range page.Roles {
@@ -152,12 +153,14 @@ func collectReplay(ctx context.Context,client ReplayClient) (ReplayResult,error)
 		token:="";for {
 			page,e:=client.ListRDS(ctx,region,token)
 			if e!=nil {partial=true;out.Coverage=append(out.Coverage,Coverage{"rds:"+region,"PARTIAL",e.Error()});break}
+			if page.ErrorCode!="" { partial=true; out.Coverage=append(out.Coverage,Coverage{"rds:"+region,"PARTIAL",page.ErrorCode}) }
 			for _,db:=range page.Instances { normalizeRDS(account,region,db,&out) }
 			if page.NextToken==""{out.Coverage=append(out.Coverage,Coverage{"rds:"+region,"COMPLETE","Replay pages consumed"});break};token=page.NextToken
 		}
 		token="";for {
 			page,e:=client.ListLambda(ctx,region,token)
 			if e!=nil {partial=true;out.Coverage=append(out.Coverage,Coverage{"lambda:"+region,"PARTIAL",e.Error()});break}
+			if page.ErrorCode!="" { partial=true; out.Coverage=append(out.Coverage,Coverage{"lambda:"+region,"PARTIAL",page.ErrorCode}) }
 			for _,fn:=range page.Functions { normalizeLambda(account,region,fn,&out) }
 			if page.NextToken==""{out.Coverage=append(out.Coverage,Coverage{"lambda:"+region,"COMPLETE","Replay pages consumed"});break};token=page.NextToken
 		}
