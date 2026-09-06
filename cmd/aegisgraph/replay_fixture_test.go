@@ -39,7 +39,7 @@ func TestJSONReplayFixtureRejectsMalformedOrAmbiguousInput(t *testing.T) {
 		`{"schema_version":2,"source":"x","account":"1","regions":["r"]}`,
 		`{"schema_version":1,"source":"x","account":"1","regions":["r","r"]}`,
 		`{"schema_version":1,"source":"x","account":"1","regions":["r"],"unexpected":true}`,
-		attackPathFixtureJSON+" trailing"
+		attackPathFixtureJSON+" trailing",
 	}
 	for _,raw:=range cases{if _,err:=LoadReplayFixture(strings.NewReader(raw));err==nil{t.Fatalf("malformed fixture accepted: %s",raw)}}
 }
