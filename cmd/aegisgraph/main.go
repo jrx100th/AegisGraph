@@ -351,18 +351,7 @@ func demoSnapshot(env string) Snapshot {
 		)
 		nodes=append([]Node{{Key:"external:internet",Type:"INTERNET",Name:"Internet"},},nodes...)
 	}
-	findings:=[]Finding{}
-	reachable,ev:=networkReachable(*ec2)
-	if reachable && hasOpenPort(*ec2,22) { findings=append(findings,Finding{"AG-NET-001","HIGH","Public SSH exposure",ec2.Key,"The workload is Internet reachable on TCP/22 under the supported model.",ev,"Remove public SSH exposure; use private access or a tightly scoped administrative path.",75}) }
-	if reachable && hasOpenPort(*ec2,3389) { findings=append(findings,Finding{"AG-NET-002","HIGH","Public RDP exposure",ec2.Key,"The workload is Internet reachable on TCP/3389 under the supported model.",ev,"Remove public RDP exposure and use private administrative access.",75}) }
-	if hasBroadAdmin(*role) { findings=append(findings,Finding{"AG-IAM-001","CRITICAL","Broad administrative IAM privilege",role.Key,"The role contains a supported Allow for wildcard action and resource without a stronger supported Deny.",[]string{"Role policy explicitly contains Allow * on *"},"Replace wildcard permissions with least-privilege actions and resources.",95}) }
-	paths:=[]Path{}
-	if reachable && hasOpenPort(*ec2,22) && hasSupportedAccess(*role,"s3:GetObject","arn:aws:s3:::demo-sensitive/*") {
-		nodesPath:=[]string{"external:internet",ec2.Key,role.Key,"aws:s3:demo-sensitive"}
-		evidence:=[]string{"Internet entry: public IPv4, IGW route, TCP/22 open to 0.0.0.0/0","Execution transition: EC2 runs as demo-workload-role","Capability transition: supported Allow s3:GetObject reaches the marked sensitive bucket"}
-		paths=append(paths,Path{"path-internet-sensitive","Internet to sensitive resource",98,nodesPath,evidence})
-		findings=append(findings,Finding{"AG-COMB-002","CRITICAL","Internet-exposed workload reaches sensitive resource",ec2.Key,"A bounded supported transition chain reaches a marked sensitive resource.",evidence,"Remove Internet exposure and reduce the role permissions; validate the path after rescanning.",98})
-	}
+	return analyzeSnapshot(Snapshot{Environment:env,Nodes:nodes,Edges:edges,Coverage:[]Coverage{{"demo","COMPLETE","Synthetic fixture; no AWS credentials or network required."}}})
 	return Snapshot{Environment:env,Nodes:nodes,Edges:edges,Findings:findings,Paths:paths,Coverage:[]Coverage{{"demo","COMPLETE","Synthetic fixture; no AWS credentials or network required."}}}
 }
 
