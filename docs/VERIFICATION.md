@@ -2,39 +2,50 @@
 
 ## Pass 1: implementation checks
 
-Automated tests cover:
+The committed Go tests cover the original demo and the offline replay pipeline:
 
-- Public address without an Internet Gateway route.
-- Correct route plus an open supported port.
-- Wrong port rejection.
-- Explicit Deny overriding wildcard Allow.
-- False-positive-trap path suppression.
-- Attack-path shape and per-transition evidence.
+- public address without an Internet Gateway route;
+- correct route plus an open supported port;
+- wrong port and restricted CIDR rejection;
+- explicit Deny overriding wildcard Allow;
+- 49 collector replay scenarios;
+- pagination, empty pages, AccessDenied, throttling/transient errors, malformed metadata, duplicate-looking identities, and partial scan retention;
+- 10 explicit supported-risk cases and 13 false-positive traps;
+- normalized replay output persisted through the real SQLite persistence method.
 
-The tests are committed in cmd/aegisgraph/main_test.go.
+The replay tests are in cmd/aegisgraph/replay_test.go. They compare semantic findings, paths, coverage, identity keys, and evidence rather than unstable full snapshots.
 
 ## Pass 2: adversarial checks
 
-The fixtures intentionally include:
+The corpus intentionally includes:
 
-- A public IP without a route.
-- A restricted private CIDR.
-- A wrong-port near miss.
-- A contradictory IAM Allow/Deny policy.
-- A bounded multi-step path.
+- public IP without a route;
+- Internet route without a public address;
+- wrong protocol/port and restricted source CIDR;
+- missing route or Security Group data;
+- unsupported IPv6/NACL information;
+- contradictory IAM Allow/Deny;
+- malformed policies, unsupported conditions, cross-account/permission-boundary/SCP uncertainty;
+- cyclic trust;
+- AccessDenied, throttling, transient failure, empty pages, and resource disappearance during complete versus partial scans.
 
-The current test source documents expected outcomes. Additional malformed-policy and cyclic-role tests are required when the live IAM parser is added.
+The test suite prevents an unsupported compound path from being generated in the false-positive traps. A partial scan does not retire an existing resource in ReplayScanLedger.
 
 ## Pass 3: independent evidence reconstruction
 
-For the attack-path fixture, the conclusion can be reconstructed manually from:
+For the replay attack-path fixture, the result can be reconstructed without trusting the path builder:
 
-1. external:internet -> aws:ec2:i-demo, supported by public IP, IGW route, and open TCP/22.
-2. aws:ec2:i-demo -> aws:role:demo-role, supported by the RUNS_AS fixture edge.
-3. aws:role:demo-role -> aws:s3:demo-sensitive, supported by the normalized s3:GetObject Allow and the sensitive node marker.
+1. the raw regional response gives the workload a public address;
+2. the raw subnet response marks a known Internet Gateway route;
+3. the raw Security Group response permits TCP/22 from 0.0.0.0/0;
+4. the raw instance response attaches demo-role;
+5. the raw IAM response gives demo-role s3:GetObject on the sensitive bucket ARN;
+6. the raw S3 response marks demo-sensitive as sensitive.
 
-The false-positive fixture has the same public address and ingress but lacks the IGW route, so no critical path is generated.
+The resulting path is exactly Internet -> workload -> role -> sensitive resource, with one evidence record per transition. The denied-policy fixture has the same modeled exposure but an explicit supported Deny and produces no equivalent compound path.
 
-## Environment limitation
+## Truth boundary
 
-The Work container does not have Go, Docker, or SQLite command-line tooling installed, so local execution was not claimed. GitHub Actions run 34027210902 passed Go vet, Go tests, race tests, microbenchmarks, frontend install, and frontend production build. The recorded microbenchmarks were BenchmarkDemoSnapshot 750.4 ns/op and BenchmarkNetworkReachability 63.36 ns/op on the hosted Go 1.22 runner. Docker and clean-install execution remain unverified in this Work session.
+These are deterministic synthetic/replay checks. They validate the modeled pipeline and adversarial behavior, not full real-world AWS correctness. The live AWS collector is still only partial STS/EC2, and no live AWS account was used in this verification.
+
+The Work container does not have Go, Docker, or SQLite command-line tooling, so local execution is not claimed. GitHub Actions is the authoritative execution environment; the latest run status and benchmark output must be checked before publishing a final pass.
