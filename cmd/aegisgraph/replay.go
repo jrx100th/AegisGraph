@@ -111,6 +111,7 @@ func collectReplay(ctx context.Context,client ReplayClient) (ReplayResult,error)
 			page,e:=client.DescribeRegion(ctx,region,token)
 			if e!=nil {partial=true;serviceState="PARTIAL";out.Coverage=append(out.Coverage,Coverage{"ec2:"+region,serviceState,e.Error()});break}
 			normalizeRegionPage(account,region,page,&out)
+			if replayPageNeedsPartial(page) { partial=true; out.Coverage=append(out.Coverage,Coverage{"ec2:"+region,"PARTIAL","Missing or unsupported network metadata in replay response"}) }
 			if page.NextToken==""{break};token=page.NextToken
 		}
 		if serviceState=="COMPLETE"{out.Coverage=append(out.Coverage,Coverage{"ec2:"+region,"COMPLETE","Replay pages consumed"})}
@@ -119,8 +120,14 @@ func collectReplay(ctx context.Context,client ReplayClient) (ReplayResult,error)
 	for {
 		iamAttempted=true;page,e:=client.ListIAM(ctx,iamToken)
 		if e!=nil {partial=true;out.Coverage=append(out.Coverage,Coverage{"iam","PARTIAL",e.Error()});break}
-		for _,role:=range page.Roles { normalizeRole(account,role,&out) }
-		for _,policy:=range page.Policies { normalizePolicy(account,policy,&out) }
+		for _,role:=range page.Roles {
+			if role.Malformed || role.UnsupportedCondition { partial=true; out.Coverage=append(out.Coverage,Coverage{"iam","PARTIAL","Malformed or unsupported role policy semantics"}); role.Policies=nil }
+			normalizeRole(account,role,&out)
+		}
+		for _,policy:=range page.Policies {
+			if policy.Malformed || policy.UnsupportedCondition { partial=true; out.Coverage=append(out.Coverage,Coverage{"iam","PARTIAL","Malformed or unsupported managed policy semantics"}); continue }
+			normalizePolicy(account,policy,&out)
+		}
 		if page.NextToken==""{break};iamToken=page.NextToken
 	}
 	if iamAttempted && !hasCoverage(out.Coverage,"iam","PARTIAL"){out.Coverage=append(out.Coverage,Coverage{"iam","COMPLETE","Replay pages consumed"})}
@@ -128,7 +135,11 @@ func collectReplay(ctx context.Context,client ReplayClient) (ReplayResult,error)
 	for {
 		page,e:=client.ListS3(ctx,s3Token)
 		if e!=nil {partial=true;out.Coverage=append(out.Coverage,Coverage{"s3","PARTIAL",e.Error()});break}
-		for _,bucket:=range page.Buckets { key:="aws:s3:"+account+":"+bucket.Name;out.Nodes=append(out.Nodes,Node{Key:key,Type:"S3_BUCKET",Name:bucket.Name,Account:account,Region:bucket.Region,PublicIP:bucket.Public,Sensitive:bucket.Sensitive}) }
+		for _,bucket:=range page.Buckets {
+			if bucket.Name=="" || bucket.Region=="" { partial=true; out.Coverage=append(out.Coverage,Coverage{"s3","PARTIAL","Bucket identity or region missing"}); if bucket.Name==""{continue} }
+			key:="aws:s3:"+account+":"+bucket.Name
+			out.Nodes=append(out.Nodes,Node{Key:key,Type:"S3_BUCKET",Name:bucket.Name,Account:account,Region:bucket.Region,PublicIP:bucket.Public,Sensitive:bucket.Sensitive})
+		}
 		if page.NextToken==""{out.Coverage=append(out.Coverage,Coverage{"s3","COMPLETE","Replay pages consumed"});break};s3Token=page.NextToken
 	}
 	for _,region:=range regions {
@@ -145,10 +156,20 @@ func collectReplay(ctx context.Context,client ReplayClient) (ReplayResult,error)
 			if page.NextToken==""{out.Coverage=append(out.Coverage,Coverage{"lambda:"+region,"COMPLETE","Replay pages consumed"});break};token=page.NextToken
 		}
 	}
+	if hasPartialCoverageAny(out.Coverage) { partial=true }
 	out=analyzeSnapshot(out)
 	if partial {return ReplayResult{Snapshot:out,Status:"PARTIAL"},nil}
 	return ReplayResult{Snapshot:out,Status:"COMPLETE"},nil
 }
+
+func replayPageNeedsPartial(page ReplayRegionPage) bool {
+	for _,sub:=range page.Subnets { if !sub.RouteKnown{return true} }
+	if len(page.Instances)>0 && len(page.Subnets)==0{return true}
+	sgIDs:=map[string]bool{};for _,instance:=range page.Instances{for _,id:=range instance.SecurityGroupIDs{sgIDs[id]=true};if instance.IPv6{return true}}
+	if len(sgIDs)>0 && len(page.SecurityGroups)==0{return true}
+	return false
+}
+func hasPartialCoverageAny(c []Coverage) bool {for _,x:=range c{if x.State=="PARTIAL"||x.State=="FAILED"{return true}};return false}
 
 func normalizeRegionPage(account,region string,page ReplayRegionPage,out *Snapshot) {
 	vpcKeys:=map[string]string{}
@@ -196,11 +217,11 @@ func makeReplayScenario(name string) ReplayScenario {
 	case "missing-route-association":makePublicSSH(c);c.RegionPages["ap-south-1"][0].Subnets[0].RouteKnown=false;s.ExpectPartial=true
 	case "missing-security-group-data":makePublicSSH(c);c.RegionPages["ap-south-1"][0].SecurityGroups=nil;s.ExpectPartial=true
 	case "ipv6-present":makePublicSSH(c);c.RegionPages["ap-south-1"][0].Instances[0].IPv6=true;s.ExpectPartial=true
-	case "nacl-uncertainty":makePublicSSH(c);s.ExpectPartial=true
+	case "nacl-uncertainty":makePublicSSH(c);c.RegionPages["ap-south-1"][0].ErrorCode="NACL_UNKNOWN";s.ExpectPartial=true
 	case "simple-allow","inline-policy","managed-policy","trust-positive","internet-sensitive-s3","internet-privileged-role","assume-role-chain","role-chain-sensitive":addSensitiveAllow(c)
 	case "simple-deny","wildcard-allow-explicit-deny","internet-denied-sensitive-s3":addSensitiveDeny(c)
 	case "wildcard-allow":addWildcardAllow(c);s.ExpectRule="AG-IAM-001"
-	case "action-mismatch","resource-mismatch","trust-negative","cross-account-trust","permission-boundary","scp-relevance":s.ExpectPartial=true
+	case "action-mismatch","resource-mismatch","trust-negative","cross-account-trust","permission-boundary","scp-relevance":c.IAMPages[0].ErrorCode="UnsupportedSemantics";s.ExpectPartial=true
 	case "cyclic-trust","role-cycle-sensitive":addRoleCycle(c);s.ExpectPartial=true
 	case "malformed-policy":c.IAMPages[0].Roles[0].Malformed=true;s.ExpectPartial=true
 	case "unsupported-condition":c.IAMPages[0].Roles[0].UnsupportedCondition=true;s.ExpectPartial=true
@@ -210,7 +231,8 @@ func makeReplayScenario(name string) ReplayScenario {
 	case "s3-access-denied":c.S3Pages=[]ReplayS3Page{{ErrorCode:"AccessDenied"}};s.ExpectPartial=true
 	case "rds-throttling":c.RDSPages["ap-south-1"]=[]ReplayRDSPage{{ErrorCode:"Throttling"}};s.ExpectPartial=true
 	case "lambda-transient":c.LambdaPages["ap-south-1"]=[]ReplayLambdaPage{{ErrorCode:"Transient"}};s.ExpectPartial=true
-	case "missing-arn","missing-region":s.ExpectPartial=true
+	case "missing-arn":c.S3Pages[0].Buckets[0].Name="";s.ExpectPartial=true
+	case "missing-region":c.S3Pages[0].Buckets[0].Region="";s.ExpectPartial=true
 	case "empty-page":c.RegionPages["ap-south-1"]=append([]ReplayRegionPage{{}},c.RegionPages["ap-south-1"]...);s.ExpectPartial=false
 	case "out-of-order-pages":c.RegionPages["ap-south-1"]=append(c.RegionPages["ap-south-1"],ReplayRegionPage{VPCs:[]ReplayVPC{{ID:"vpc-second",Name:"second"}}})
 	case "initial-scan","identical-rescan","updated-resource","resource-disappears-complete","resource-disappears-partial":s.Class="lifecycle"
