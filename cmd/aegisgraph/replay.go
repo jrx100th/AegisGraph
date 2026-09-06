@@ -167,7 +167,13 @@ func collectReplay(ctx context.Context,client ReplayClient) (ReplayResult,error)
 func replayPageNeedsPartial(page ReplayRegionPage) bool {
 	for _,sub:=range page.Subnets { if !sub.RouteKnown{return true} }
 	if len(page.Instances)>0 && len(page.Subnets)==0{return true}
-	sgIDs:=map[string]bool{};for _,instance:=range page.Instances{for _,id:=range instance.SecurityGroupIDs{sgIDs[id]=true};if instance.IPv6{return true}}
+	sgIDs:=map[string]bool{}
+	for _,instance:=range page.Instances{for _,id:=range instance.SecurityGroupIDs{sgIDs[id]=true};if instance.IPv6{return true}}
+	for _,db:=range page.RDS {
+		if db.Public && !db.PublicKnown { return true }
+		if db.Public && !db.RouteKnown { return true }
+		for _,id:=range db.SecurityGroupIDs { sgIDs[id]=true }
+	}
 	if len(sgIDs)>0 && len(page.SecurityGroups)==0{return true}
 	return false
 }
