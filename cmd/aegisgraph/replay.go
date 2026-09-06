@@ -205,7 +205,7 @@ func makeReplayScenario(name string) ReplayScenario {
 	c:=baseSimulatedAWS()
 	s:=ReplayScenario{Name:name,Class:"adversarial",Client:c}
 	switch name {
-	case "public-ssh","internet-privileged-role","internet-sensitive-s3","assume-role-chain","role-chain-sensitive","role-cycle-sensitive","multiple-security-groups","out-of-order-pages":
+	case "public-ssh","internet-privileged-role","internet-sensitive-s3","assume-role-chain","role-chain-sensitive","multiple-security-groups","out-of-order-pages":
 		makePublicSSH(c)
 	case "public-rdp":makePublicSSH(c);c.RegionPages["ap-south-1"][0].SecurityGroups[0].Ingress=[]Ingress{{Protocol:"tcp",FromPort:3389,ToPort:3389,CIDR:"0.0.0.0/0"}};s.ExpectRule="AG-NET-002"
 	case "public-rds":makePublicRDS(c);s.ExpectRule="AG-NET-003"
