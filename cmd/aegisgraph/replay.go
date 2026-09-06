@@ -30,14 +30,14 @@ type ReplayRegionPage struct {
 type ReplayVPC struct { ID string; Name string }
 type ReplaySubnet struct { ID string; VPCID string; Name string; RouteIGW bool; RouteKnown bool }
 type ReplaySecurityGroup struct { ID string; Name string; VPCID string; Ingress []Ingress; Present bool }
-type ReplayInstance struct { ID string; Name string; SubnetID string; SecurityGroupIDs []string; PublicIP bool; IPv6 bool; RoleName string }
-type ReplayRDS struct { ID string; Name string; SubnetID string; Public bool; Ingress []Ingress; Sensitive bool }
+type ReplayInstance struct { ID string; Name string; SubnetID string; SecurityGroupIDs []string; PublicIP bool; PublicKnown bool; IPv6 bool; RoleName string; InstanceProfileName string }
+type ReplayRDS struct { ID string; Name string; Engine string; SubnetID string; SubnetIDs []string; Public bool; PublicKnown bool; RouteIGW bool; RouteKnown bool; SecurityGroupIDs []string; Ingress []Ingress; Sensitive bool; Encrypted bool; EncryptionKnown bool }
 type ReplayLambda struct { ID string; Name string; RoleName string }
-type ReplayIAMPage struct { Roles []ReplayRole; Policies []ReplayPolicy; NextToken string; ErrorCode string }
-type ReplayRole struct { Name string; Account string; Policies []Policy; Trust []string; AttachTo []string; Malformed bool; UnsupportedCondition bool }
-type ReplayPolicy struct { Name string; Account string; Document []Policy; AttachedRoleNames []string; Malformed bool; UnsupportedCondition bool }
+type ReplayIAMPage struct { Users []ReplayUser; Roles []ReplayRole; InstanceProfiles []ReplayInstanceProfile; Policies []ReplayPolicy; NextToken string; ErrorCode string }
+type ReplayRole struct { Name string; ARN string; Account string; Policies []Policy; Trust []string; AttachTo []string; Malformed bool; UnsupportedCondition bool }
+type ReplayUser struct { Name string; ARN string; Account string; Policies []Policy }\ntype ReplayInstanceProfile struct { Name string; ARN string; Account string; RoleNames []string }\ntype ReplayPolicy struct { Name string; ARN string; Account string; Document []Policy; AttachedRoleNames []string; AttachedUserNames []string; Malformed bool; UnsupportedCondition bool }
 type ReplayS3Page struct { Buckets []ReplayBucket; NextToken string; ErrorCode string }
-type ReplayBucket struct { Name string; Region string; Public bool; Sensitive bool }
+type ReplayBucket struct { Name string; Region string; Public bool; PublicKnown bool; PublicAccessBlocked bool; PublicAccessKnown bool; PolicyKnown bool; PolicyPublic bool; Encrypted bool; EncryptionKnown bool; Sensitive bool }
 type ReplayLambdaPage struct { Functions []ReplayLambda; NextToken string; ErrorCode string }
 type ReplayRDSPage struct { Instances []ReplayRDS; NextToken string; ErrorCode string }
 
