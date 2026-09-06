@@ -241,12 +241,19 @@ func collectInstances(ctx context.Context, client *ec2.Client) ([]ReplayInstance
 				if id == "" { continue }
 				profile := ""
 				if instance.IamInstanceProfile != nil { profile = profileNameFromARN(aws.ToString(instance.IamInstanceProfile.Arn)) }
-				out = append(out, ReplayInstance{ID:id,Name:tagName(instance.Tags,id),SubnetID:aws.ToString(instance.SubnetId),SecurityGroupIDs:securityGroupIDs(instance.SecurityGroups),PublicIP:aws.ToString(instance.PublicIpAddress)!="",PublicKnown:true,IPv6:len(instance.Ipv6Addresses)>0,InstanceProfileName:profile})
+				out = append(out, ReplayInstance{ID:id,Name:tagName(instance.Tags,id),SubnetID:aws.ToString(instance.SubnetId),SecurityGroupIDs:securityGroupIDs(instance.SecurityGroups),PublicIP:aws.ToString(instance.PublicIpAddress)!="",PublicKnown:true,IPv6:instanceHasIPv6(instance),InstanceProfileName:profile})
 			}
 		}
 		if aws.ToString(page.NextToken) == "" { return out, nil }
 		token = page.NextToken
 	}
+}
+
+func instanceHasIPv6(instance ec2types.Instance) bool {
+	for _,network:=range instance.NetworkInterfaces {
+		if len(network.Ipv6Addresses)>0{return true}
+	}
+	return false
 }
 
 func securityGroupIDs(groups []ec2types.GroupIdentifier) []string {
