@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "source": "sanitized-secure-example",
+  "account": "222222222222",
+  "regions": ["us-east-1"],
+  "region_pages": {
+    "us-east-1": [{
+      "vpcs": [{"id":"vpc-2","name":"private"}],
+      "subnets": [{"id":"subnet-2","vpc_id":"vpc-2","name":"private","route_igw":false,"route_known":true}],
+      "security_groups": [{"id":"sg-2","name":"restricted","vpc_id":"vpc-2","present":true,"ingress":[{"protocol":"tcp","from_port":22,"to_port":22,"cidr":"10.0.0.0/8"}]}],
+      "instances": [{"id":"i-2","name":"private-workload","subnet_id":"subnet-2","security_group_ids":["sg-2"],"public_ip":false,"public_known":true}]
+    }]
+  },
+  "iam_pages": [],
+  "s3_pages": [{"buckets":[{"name":"private","region":"us-east-1","public_access_known":true,"public_access_blocked":true,"policy_known":true,"policy_public":false,"encrypted":true,"encryption_known":true}]}],
+  "rds_pages": {"us-east-1":[]},
+  "lambda_pages": {"us-east-1":[]}
+}
