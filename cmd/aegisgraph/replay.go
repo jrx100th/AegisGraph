@@ -218,7 +218,7 @@ func makeReplayScenario(name string) ReplayScenario {
 	case "missing-security-group-data":makePublicSSH(c);c.RegionPages["ap-south-1"][0].SecurityGroups=nil;s.ExpectPartial=true
 	case "ipv6-present":makePublicSSH(c);c.RegionPages["ap-south-1"][0].Instances[0].IPv6=true;s.ExpectPartial=true
 	case "nacl-uncertainty":makePublicSSH(c);c.RegionPages["ap-south-1"][0].ErrorCode="NACL_UNKNOWN";s.ExpectPartial=true
-	case "simple-allow","inline-policy","managed-policy","trust-positive","internet-sensitive-s3","internet-privileged-role","assume-role-chain","role-chain-sensitive":addSensitiveAllow(c)
+	case "simple-allow","inline-policy","managed-policy","trust-positive":addSensitiveAllow(c)
 	case "simple-deny","wildcard-allow-explicit-deny","internet-denied-sensitive-s3":addSensitiveDeny(c)
 	case "wildcard-allow":addWildcardAllow(c);s.ExpectRule="AG-IAM-001"
 	case "action-mismatch","resource-mismatch","trust-negative","cross-account-trust","permission-boundary","scp-relevance":c.IAMPages[0].ErrorCode="UnsupportedSemantics";s.ExpectPartial=true
@@ -237,6 +237,7 @@ func makeReplayScenario(name string) ReplayScenario {
 	case "out-of-order-pages":c.RegionPages["ap-south-1"]=append(c.RegionPages["ap-south-1"],ReplayRegionPage{VPCs:[]ReplayVPC{{ID:"vpc-second",Name:"second"}}})
 	case "initial-scan","identical-rescan","updated-resource","resource-disappears-complete","resource-disappears-partial":s.Class="lifecycle"
 	}
+	if name=="internet-sensitive-s3"||name=="internet-privileged-role"||name=="assume-role-chain"||name=="role-chain-sensitive"{addSensitiveAllow(c)}
 	if name=="public-ssh"{s.ExpectRule="AG-NET-001"}
 	if name=="internet-sensitive-s3"||name=="internet-privileged-role"||name=="assume-role-chain"||name=="role-chain-sensitive"{s.ExpectPath=true;s.ExpectRule="AG-COMB-002"}
 	if strings.Contains(name,"denied-sensitive"){s.ExpectNoRule="AG-COMB-002"}
