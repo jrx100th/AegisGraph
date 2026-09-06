@@ -99,7 +99,7 @@ func collectReplay(ctx context.Context,client ReplayClient) (ReplayResult,error)
 	account,err:=client.GetCallerIdentity(ctx);if err!=nil{return ReplayResult{Status:"FAILED"},err}
 	regions,err:=client.ListRegions(ctx);if err!=nil{return ReplayResult{Status:"FAILED"},err}
 	sort.Strings(regions)
-	out:=Snapshot{Environment:"replay",Coverage:[]Coverage{{"sts","COMPLETE","Replay caller identity"}}}
+	out:=Snapshot{Environment:"replay",Account:account,Status:"RUNNING",Coverage:[]Coverage{{"sts","COMPLETE","Replay caller identity"}}}
 	out.Nodes=append(out.Nodes,Node{Key:"aws:account:"+account,Type:"AWS_ACCOUNT",Name:"Replay account "+account,Account:account})
 	partial:=false
 	for _,region:=range regions {
@@ -169,7 +169,8 @@ func collectReplay(ctx context.Context,client ReplayClient) (ReplayResult,error)
 	}
 	if hasPartialCoverageAny(out.Coverage) { partial=true }
 	out=analyzeSnapshot(out)
-	if partial {return ReplayResult{Snapshot:out,Status:"PARTIAL"},nil}
+	if partial {out.Status="PARTIAL";return ReplayResult{Snapshot:out,Status:"PARTIAL"},nil}
+	out.Status="COMPLETE"
 	return ReplayResult{Snapshot:out,Status:"COMPLETE"},nil
 }
 
