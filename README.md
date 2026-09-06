@@ -1,61 +1,69 @@
 # AegisGraph
 
-AegisGraph is an open-source, deterministic cloud-security graph for authorized environments. It normalizes cloud assets into typed relationships, explains supported security conclusions with evidence, and keeps the runtime free of AI services.
+AegisGraph is an open-source, deterministic cloud-security graph for authorized environments. It normalizes cloud assets into typed relationships, explains supported conclusions with evidence, and has no runtime AI dependency.
 
-This repository currently contains a verified v0.1 demo slice plus an offline AWS collector-replay laboratory:
+The current release is an AWS-first demo and replay-verified foundation:
 
-- Go HTTP API with SQLite persistence and schema migrations.
-- React + TypeScript investigation console.
-- Secure, exposed, attack-path, and false-positive-trap synthetic environments.
-- Conservative Internet exposure checks requiring supported addressing, Internet Gateway routing, and open inbound TCP rules.
-- Bounded Internet-to-workload-to-role-to-sensitive-resource path generation.
-- Explicit-deny-overrides-allow behavior for the implemented IAM subset.
-- Transparent finding evidence, remediation text, and integer risk scores.
-- A 49-scenario simulated AWS corpus that exercises pagination, partial coverage, lifecycle, IAM/network near-misses, and service failures through a collector-facing interface.
+- Go HTTP API, SQLite persistence, schema migrations, and React/TypeScript console.
+- Secure, exposed, attack-path, and false-positive-trap demo environments.
+- One shared collector pipeline for live AWS adapters and offline replay clients.
+- Conservative Internet exposure reasoning requiring supported addressing, Internet Gateway routing, and an open supported TCP rule.
+- Bounded IAM matching with explicit Deny precedence and uncertainty for unsupported conditions.
+- Deterministic findings, attack paths, blast-radius traversal, evidence, remediation, and integer risk values.
+- 80 deterministic replay scenarios, including pagination, service errors, lifecycle, IAM/network near-misses, S3/RDS/Lambda cases, and adapter equivalence.
 
 ## Quick start
 
-Requirements: Go 1.22 or newer, Node 20 or newer, and npm.
-
-Build the frontend:
+Requirements: Go 1.24 or newer, Node 20 or newer, and npm.
 
     cd frontend
     npm install
     npm run build
     cd ..
-
-Run the API:
-
     go run ./cmd/aegisgraph -static frontend/dist
 
-Open http://localhost:8080 and select Load demo. No AWS credentials or Internet connection are needed after dependencies are available.
+Open http://localhost:8080 and select Load demo. No AWS credentials or network are needed after dependencies are available.
 
-The backend can also be exercised directly:
+Useful API calls:
 
     curl -X POST 'http://localhost:8080/api/demo/load?environment=attack-path'
     curl http://localhost:8080/api/stats
     curl http://localhost:8080/api/findings
     curl http://localhost:8080/api/attack-paths
+    curl http://localhost:8080/api/blast-radius/<node-key>
 
 Supported demo environments are secure, exposed, attack-path, and false-positive-trap.
 
-## Offline AWS simulation
+## Offline AWS replay
 
-Run the collector replay corpus:
+Run the deterministic collector corpus:
 
-    go test ./cmd/aegisgraph -run Replay -count=1
+    go test ./cmd/aegisgraph -run 'Replay|JSON|BlastRadius|Adapter' -count=1
 
-The simulator enters through the replay collector contract and then uses the ordinary normalization, analysis, persistence, findings, and attack-path code. It never inserts UI-only findings or hard-coded paths. See docs/SIMULATION.md and docs/AWS_REPLAY.md.
+Load a sanitized JSON fixture through the same collector and analysis pipeline:
 
-Simulation establishes deterministic behavior for modeled responses; it is not proof of complete real-world AWS behavior or live IAM/network parity.
+    curl -X POST http://localhost:8080/api/replay/load       --data-binary @fixtures/replay/attack-path.json       -H 'Content-Type: application/json'
 
-## AWS status
+Fixture format and sanitization guidance are in docs/AWS_REPLAY.md. Replay proves modeled behavior and collector robustness; it is not proof of complete real-world AWS behavior or IAM/network parity.
 
-The current live endpoint at POST /api/scans/aws is a bounded partial AWS inventory collector. It uses the normal AWS SDK credential chain and read-only STS/EC2 calls for caller identity, enabled regions, VPCs, subnets, route tables, Internet Gateways, security groups, and instances. It reports PARTIAL coverage and does not yet provide live IAM, S3, RDS, or Lambda collection. No credentials are persisted.
+## AWS mode
+
+POST /api/scans/aws uses the normal AWS SDK credential chain and the shared collectors. Implemented read-only adapters cover STS, EC2/VPC networking, IAM roles/users/policies/instance profiles, S3 bucket metadata, RDS instances, and Lambda functions. Service and region coverage are retained in the scan record.
+
+Current capability labels are:
+
+- DEMO_VERIFIED: synthetic demo pipeline.
+- REPLAY_VERIFIED: deterministic simulator/fixture pipeline.
+- LIVE_AWS_IMPLEMENTED: official SDK adapters and shared collectors are present.
+- LIVE_AWS_UNVERIFIED: no live AWS account was used in this work session.
+- PARTIAL_SUPPORT / UNKNOWN: a conclusion depends on unavailable or unsupported semantics.
+- UNSUPPORTED: not evaluated.
+
+No credentials are persisted or returned. No mutation-capable AWS calls are used. Do not label the live path LIVE_AWS_VALIDATED until it has been exercised against an authorized AWS account.
 
 ## Truthfulness boundary
 
-This is not full AWS IAM equivalence, a vulnerability scanner, an exploit tool, or a Wiz replacement. Unsupported semantics must remain UNKNOWN. See docs/LIMITATIONS.md.
+This is not full AWS IAM equivalence, a vulnerability scanner, an exploit tool, or a replacement claim for a commercial platform. Conditions, permission boundaries, session policies, SCPs, resource policies, complete cross-account authorization, NACLs, IPv6, NAT, load balancers, and service-specific authorization remain limited or unsupported. See docs/LIMITATIONS.md.
 
 ## Verification
 
@@ -63,7 +71,7 @@ This is not full AWS IAM equivalence, a vulnerability scanner, an exploit tool, 
     go test -race ./...
     cd frontend && npm test && npm run build
 
-The exact evidence status is maintained in PROGRESS.md and docs/VERIFICATION.md. Do not treat unexecuted local commands as passing.
+GitHub Actions runs the Go formatter, vet, tests, race suite, benchmarks, and frontend build without AWS credentials. Exact evidence and remaining gaps are maintained in PROGRESS.md and docs/VERIFICATION.md.
 
 ## License
 
