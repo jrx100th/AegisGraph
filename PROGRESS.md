@@ -32,7 +32,7 @@ CI benchmark evidence: BenchmarkDemoSnapshot 750.4 ns/op, 3680 B/op, 16 allocs/o
 
 ## KNOWN BUGS
 
-- The AWS endpoint is intentionally not implemented.
+- The AWS endpoint currently performs partial STS/EC2 inventory and does not assert live IAM/network findings.
 - The current UI is a v0.1 desktop-oriented console and does not yet provide full asset-detail routing.
 
 ## KNOWN LIMITATIONS
@@ -44,11 +44,11 @@ See docs/LIMITATIONS.md. Unsupported semantics must not be interpreted as safe.
 - Keep Go + SQLite as the target runtime architecture.
 - Use a custom bounded SVG graph in v0.1 to avoid an unmeasured graph dependency; evaluate Cytoscape.js or Sigma.js before larger graphs.
 - Persist the demo through the same database and engine path as future cloud scans.
-- Prefer explicit NOT_IMPLEMENTED/UNKNOWN over fabricated AWS conclusions.
+- Prefer explicit PARTIAL/UNKNOWN/NOT_IMPLEMENTED states over fabricated AWS conclusions.
 
 ## NEXT HIGHEST PRIORITIES
 
 1. Extend AWS collectors to IAM, S3, RDS, Lambda, and complete pagination/normalization tests.
 2. Split domain, storage, engine, and HTTP packages before broadening coverage.
-3. Add benchmark generation and pprof evidence.
+3. Add 10k/50k-node benchmark generation and pprof evidence.
 4. Add clean-install and container verification from an environment with Go and Docker.
