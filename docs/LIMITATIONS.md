@@ -1,25 +1,23 @@
 # Limitations
 
-This release is a deterministic demo and verification foundation, not a complete AWS security product.
+This is an AWS-first deterministic demo and replay-verified foundation, not a complete cloud-security product.
 
 ## Live AWS coverage
 
-The current AWS endpoint provides partial read-only STS/EC2 inventory. It does not yet route through the replay-facing interfaces or implement live IAM, S3, RDS, or Lambda collectors. It reports PARTIAL coverage and never persists credentials.
+Official AWS SDK adapters and shared collectors implement STS, EC2/VPC networking, IAM roles/users/policies/instance profiles, S3 bucket metadata, RDS instances, and Lambda functions. The honest status is LIVE_AWS_IMPLEMENTED plus LIVE_AWS_UNVERIFIED: no live AWS account was used in this work session. LIVE_AWS_VALIDATED is not claimed.
 
-## Simulation boundary
+## Replay boundary
 
-The offline replay lab contains 49 code-defined scenarios for modeled STS, EC2, IAM, S3, RDS, and Lambda responses. It exercises the real replay collector, normalization, analysis, and SQLite persistence. It does not prove complete AWS API behavior, IAM parity, regional semantics, or network correctness. No live AWS account was used.
-
-A versioned sanitized JSON format is documented in docs/AWS_REPLAY.md, but a JSON fixture loader and real-response corpus are not yet implemented. The current executable fixture format is Go.
+The offline corpus contains 80 named scenarios, 20 supported-risk cases, and 20 false-positive traps. The JSON loader accepts versioned sanitized fixtures and runs the same collector/normalization/analysis pipeline. Replay establishes deterministic modeled behavior, not complete AWS API, IAM, routing, or regional correctness.
 
 ## Security semantics
 
-IAM support is intentionally narrow. Conditions, permission boundaries, session policies, SCPs, resource policies, service-specific authorization, full cross-account semantics, and full AssumeRole evaluation are not implemented. Network ACLs, load balancers, transit gateways, IPv6, NAT, private routing, and service endpoints are not implemented.
+Conditions, permission boundaries, session policies, SCPs, resource policies, complete cross-account authorization, service-specific permissions, NACLs, load balancers, transit gateways, IPv6, NAT, private routing, and service endpoints are limited or unsupported. Unknown or partial evidence is not promoted to a positive conclusion.
 
 ## Lifecycle and scale
 
-The replay ledger protects against retiring resources after incomplete scans, but the production database still needs richer scan IDs, historical views, stale/deleted-resource policy, and per-region/service visibility. No 10k/50k large-graph benchmark has been executed.
+Complete scans replace the current materialized graph; partial/failed scans do not retire resources or resolve findings. Finding history has stable keys and resolved state. Large 10k/50k graph measurements and local Docker execution remain environment-dependent and are not claimed without recorded output.
 
 ## Product scope
 
-The frontend is a polished investigation-console slice, not the complete required asset-detail, scan-status, settings, or large-graph interaction suite. Clean Docker execution and live AWS execution remain unverified in this Work container.
+The frontend is functional for demo/replay-backed investigation, but richer historical scan views, complete asset-detail workflows, and large-graph interaction remain future work.
