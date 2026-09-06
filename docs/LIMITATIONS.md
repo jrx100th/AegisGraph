@@ -2,7 +2,7 @@
 
 This release is a deterministic demo and architecture foundation, not a complete AWS security product.
 
-The most important limitation is that live AWS discovery is not yet enabled. The current endpoint returns NOT_IMPLEMENTED and never accepts credentials.
+The current AWS endpoint provides partial read-only STS/EC2 inventory. It does not yet implement IAM, S3, RDS, Lambda, complete pagination across every service, or live finding/path analysis. It reports PARTIAL coverage and never persists credentials.
 
 IAM support is intentionally narrow. Network semantics are intentionally narrow. Resource policy, condition, SCP, permission-boundary, session-policy, NACL, load-balancer, IPv6, NAT, and cross-account semantics are not implemented.
 
