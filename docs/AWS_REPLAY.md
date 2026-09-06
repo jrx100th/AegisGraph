@@ -1,54 +1,58 @@
 # AWS response replay
 
-AegisGraph's current offline replay corpus is defined as deterministic Go values implementing the narrow `ReplayClient` interface. This keeps fixtures reviewable and avoids storing credentials or accidental live-account data.
+AegisGraph supports deterministic in-process simulation and a versioned sanitized JSON fixture format. Both feed the same narrow ReplayClient interface and shared collectors.
 
-## Replay contract
+## JSON format
 
-The simulator exposes these operations:
-
-- caller identity and region discovery;
-- paginated EC2 regional descriptions;
-- paginated IAM pages;
-- paginated S3 bucket pages;
-- paginated RDS pages per region;
-- paginated Lambda pages per region.
-
-Each operation accepts `context.Context`, preserves page-token behavior, and can return a service-shaped error. The collector—not the test—normalizes the responses and invokes the ordinary analysis engine.
-
-## Future sanitized fixture format
-
-When real AWS responses are captured, contributors should convert them to a versioned fixture before committing:
+Schema version 1 uses maps from region names to page arrays:
 
 ```json
 {
   "schema_version": 1,
-  "source": "aws-sanitized",
-  "account": "account-redacted",
-  "regions": [
-    {
-      "name": "region-redacted",
-      "ec2_pages": [
-        {
-          "next_token": null,
-          "vpcs": [],
-          "subnets": [],
-          "security_groups": [],
-          "instances": []
-        }
-      ],
-      "rds_pages": [],
-      "lambda_pages": []
-    }
-  ],
+  "source": "sanitized-example",
+  "account": "111111111111",
+  "regions": ["us-east-1"],
+  "region_pages": {
+    "us-east-1": [
+      {
+        "vpcs": [],
+        "subnets": [],
+        "security_groups": [],
+        "instances": [],
+        "rds": [],
+        "lambda": [],
+        "next_token": ""
+      }
+    ]
+  },
   "iam_pages": [],
-  "s3_pages": []
+  "s3_pages": [],
+  "rds_pages": {"us-east-1": []},
+  "lambda_pages": {"us-east-1": []}
 }
 ```
 
-Before committing a fixture, remove or replace account IDs, ARNs, resource names, IP addresses, tags, user data, policy identifiers, and any authentication material. Never commit access keys, session tokens, secret keys, cookies, or raw credential-provider output. Keep page boundaries and error responses intact because they are part of replay coverage.
+The loader rejects unsupported schema versions, duplicate or empty regions, unknown JSON fields, trailing JSON, and bodies larger than 8 MiB. Page next_token and error_code values are preserved so pagination and service failures remain testable.
 
-A JSON loader is not yet part of the runtime. The current Go scenario catalog is the executable format; this schema documents the compatibility target for later sanitized-response ingestion.
+Run a fixture through the API:
+
+    curl -X POST http://localhost:8080/api/replay/load       --data-binary @fixtures/replay/attack-path.json       -H 'Content-Type: application/json'
+
+Example fixtures are in fixtures/replay/. They are sanitized synthetic examples, not captured AWS responses.
+
+## Sanitization guidance
+
+Future contributors may convert consented AWS responses into this format with a deterministic replacement map:
+
+1. Replace account IDs consistently.
+2. Replace ARNs while preserving account, region, resource type, and relationships.
+3. Replace names and public/private addresses consistently.
+4. Remove user data, tags, policy identifiers, tokens, cookies, keys, and secret values unless structurally required and safely synthetic.
+5. Preserve page boundaries, missing fields, and service errors.
+6. Validate with LoadReplayFixture before committing.
+
+No credentials or executable content belong in fixtures. Fixture loading is data-only and does not read arbitrary paths or invoke shell commands.
 
 ## What replay can establish
 
-Replay can establish deterministic normalization, identity-key construction, pagination handling, coverage state transitions, evidence preservation, and behavior for explicitly modeled IAM/network cases. It cannot establish that AWS returns all modeled fields in every service, that modeled fields have identical semantics in every region, or that the implementation matches the full AWS authorization and routing systems. Live AWS validation remains required.
+Replay can establish deterministic normalization, identity-key construction, pagination handling, coverage behavior, evidence preservation, lifecycle safety, and the modeled IAM/network conclusions. It cannot establish full AWS service behavior, exact IAM authorization parity, or live regional/network semantics. The status is REPLAY_VERIFIED; live validation remains a separate requirement.
