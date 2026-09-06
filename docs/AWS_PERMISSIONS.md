@@ -1,6 +1,6 @@
 # AWS permissions
 
-Live AWS collection is not enabled in v0.1. Before enabling it, collectors should use the normal AWS SDK for Go credential chain and read-only calls only.
+The current partial collector uses the normal AWS SDK for Go credential chain and read-only calls only. It currently calls STS caller identity and EC2 regional inventory APIs. Before enabling additional services, each collector must preserve per-service coverage and partial-scan semantics.
 
 The intended initial permission families are:
 
@@ -23,4 +23,4 @@ The intended initial permission families are:
 - rds:DescribeDBInstances
 - lambda:ListFunctions
 
-These are design targets, not a claim that the current binary performs them.
+The current binary performs the STS and EC2 calls needed for the partial inventory described above. IAM, S3, RDS, and Lambda permissions remain design targets until their collectors are implemented and verified.
