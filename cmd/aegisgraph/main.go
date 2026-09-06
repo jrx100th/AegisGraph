@@ -24,6 +24,7 @@ type Node struct {
 	Account string
 	Region string
 	PublicIP bool
+	Public bool
 	PublicKnown bool
 	RouteIGW bool
 	RouteKnown bool
