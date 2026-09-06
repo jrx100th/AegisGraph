@@ -2,57 +2,58 @@
 
 ## CURRENT STATE
 
-Repository: jrx100th/AegisGraph. Branch: main. Current milestone: v0.1 deterministic demo slice plus offline AWS collector replay laboratory. The live AWS endpoint remains a partial STS/EC2 inventory.
+Repository: jrx100th/AegisGraph. Branch: main. Task 3 core implementation is complete and the latest hosted verification is green at commit 19333aae810307f0f81000e663aec18d78b51b53.
 
 ## COMPLETED
 
-- Go HTTP service, SQLite schema/migrations, transactional persistence, and React/TypeScript console.
-- Secure, exposed, attack-path, and false-positive-trap demo environments.
-- Shared deterministic analysis for network findings, bounded attack paths, explicit supported IAM Deny precedence, evidence, remediation, and risk values.
-- Narrow replay-facing AWS service interface and deterministic simulator for STS, EC2, IAM, S3, RDS, and Lambda-shaped responses.
-- Collector-to-normalization-to-analysis replay tests with 49 scenarios, pagination, empty pages, AccessDenied, throttling/transient failures, malformed metadata, identity collision checks, and partial-scan retention.
-- Offline scenario and replay documentation, CI execution, and a collector replay microbenchmark.
+- One shared narrow ReplayClient contract feeds both in-process/JSON replay and official AWS SDK adapters.
+- Official read-only adapters exist for STS, EC2/VPC networking, IAM roles/users/policies/instance profiles, S3 bucket metadata, RDS instances, and Lambda functions.
+- URL-decoded IAM policy retrieval, managed default versions, inline policies, public-state uncertainty, RDS network prerequisites, Lambda role links, and attached-user policies are represented.
+- Append-only scan history records source/account/status/timestamps/coverage. Complete scans replace current materialized state; partial/failed scans preserve current resources and findings.
+- Stable finding history keys track first/last seen and resolved state.
+- Versioned JSON replay loader with strict schema validation, 8 MiB size bound, example fixtures, and API endpoint.
+- Bounded capability-only blast-radius traversal with cycle prevention and evidence.
+- Replay corpus expanded to 80 scenarios, with explicit 20 supported-risk and 20 false-positive suites.
+- Adapter equivalence, JSON replay, lifecycle, and blast-radius tests added.
+- CI now verifies startup through health/demo/findings/path requests and builds the Docker image.
 
 ## IN PROGRESS
 
-- Route the live official AWS SDK implementation through the replay-facing service interfaces.
-- Implement live IAM users/roles/policies, instance profiles, S3, RDS, and Lambda collectors with service/region coverage.
-- Expand lifecycle persistence from the replay ledger to historical scan IDs, stale-resource policy, and per-region visibility.
-- Add sanitized JSON fixture loading and larger graph benchmark generation.
+- Final documentation-only CI rerun after this progress update.
+- Manual live AWS validation remains intentionally unavailable in this session.
+- Broader persistence/API measurements remain future work.
 
 ## TEST STATUS
 
-GitHub Actions run 34030372218, job 101478659148, passed gofmt, go vet, Go tests, Go race tests, Go microbenchmarks, frontend install, and frontend production build. The Work container used for this session does not provide Go, Docker, or SQLite CLI tooling, so no local pass is claimed.
-
-The replay suite explicitly verifies 10 supported-risk cases and 13 false-positive traps. Synthetic results validate modeled behavior only and do not replace live AWS validation.
+Hosted CI run 34051561436, job 101535995306, passed Go formatting, go vet, go test ./..., go test -race ./..., frontend npm install/build, backend build, application startup smoke, and Docker build. No local Go/Docker/SQLite CLI was available in this Work container.
 
 ## BENCHMARK STATUS
 
-Run 34030372218 measured BenchmarkDemoSnapshot at 3,208 ns/op, BenchmarkNetworkReachability at 100.5 ns/op, and BenchmarkReplayCollection at 5,193 ns/op. No large-graph benchmark claim is made.
+Hosted run 34051561436 on linux/amd64 AMD EPYC 7763 measured BenchmarkDemoSnapshot 3,783 ns/op; BenchmarkNetworkReachability 126.3 ns/op; BenchmarkReplayCollection 7,556 ns/op; and BenchmarkBlastRadius10kNodes50kEdges 2,591,327 ns/op with 874,621 B/op and 111 allocs/op. The scale case uses 10,000 nodes and 50,006 edges. These are synthetic regression measurements, not production guarantees.
 
 ## KNOWN BUGS
 
-- The live AWS collector is not yet using the replay-facing interfaces.
-- The replay collector models IAM roles/policies, S3, RDS, and Lambda, but those service collectors are not yet wired to official live SDK clients.
-- Scan history and stale/deleted-resource handling are stronger in replay tests than in the production endpoint.
+No known failing tests or build defects remain in the verified replay/live-adapter path. Live AWS behavior has not been exercised against an AWS account.
 
 ## KNOWN LIMITATIONS
 
-- Simulation is deterministic and reviewable but cannot prove complete AWS API, IAM, routing, or regional behavior.
-- Conditions, permission boundaries, session policies, SCPs, resource policies, cross-account authorization, NACLs, IPv6, NAT, load balancers, and service-specific authorization are not fully implemented.
-- Clean Docker execution and live AWS execution remain unverified in this Work container.
+- LIVE_AWS_IMPLEMENTED and LIVE_AWS_UNVERIFIED are the correct live labels; LIVE_AWS_VALIDATED is not claimed.
+- Unsupported IAM Conditions, permission boundaries, session policies, SCPs, resource policies, complete cross-account authorization, and service-specific semantics remain partial/unknown.
+- Network ACLs, IPv6, NAT, load balancers, transit gateways, private routing, and service endpoints remain limited/unsupported.
+- Sanitized fixtures are synthetic examples; no captured real-AWS fixture is included.
+- Large persistence/API/50k graph measurements remain outstanding.
 
 ## IMPORTANT DECISIONS
 
-- Keep Go + SQLite and use narrow service interfaces rather than wrapping the entire AWS SDK.
-- Keep the simulator in-process and dependency-light.
-- Exercise the real replay collector and analysis pipeline; never insert synthetic findings or paths directly.
-- Prefer PARTIAL/UNKNOWN over unsafe certainty.
-- Keep AWS-first scope; defer other providers and runtime AI.
+- Preserve one collector implementation per supported service and keep adapters narrow.
+- Treat partial/failed scans as non-destructive observations.
+- Prefer UNKNOWN/PARTIAL over unsafe IAM/network certainty.
+- Keep AWS-first scope and defer other providers/runtime AI.
 
 ## NEXT HIGHEST PRIORITIES
 
-1. Adapt the live AWS SDK collector to the same narrow service interfaces.
-2. Add live IAM/S3/RDS/Lambda collection and scan coverage/lifecycle persistence.
-3. Add a sanitized JSON replay loader and verify it against captured, consented responses.
-4. Run larger 10k/50k-node measurements and verify Docker/clean-install paths.
+1. Exercise the live adapter against an authorized, read-only AWS account and label only the actually validated coverage.
+2. Add 50k-node/250k-edge persistence and API measurements.
+3. Add richer historical finding/scan API views.
+4. Expand conservative handling for NACL/IPv6/load balancer semantics.
+5. Revisit collector concurrency only after measured account-scale bottlenecks.
