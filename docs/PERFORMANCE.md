@@ -1,13 +1,16 @@
 # Performance
 
-The repository retains a Go replay microbenchmark for regression. Historical Task 2 hosted measurements were:
+Hosted GitHub Actions run 34051561436, job 101535995306, executed:
 
-- BenchmarkDemoSnapshot: 3,208 ns/op, 5,936 B/op, 39 allocs/op.
-- BenchmarkNetworkReachability: 100.5 ns/op, 112 B/op, 3 allocs/op.
-- BenchmarkReplayCollection: 5,193 ns/op, 7,848 B/op, 63 allocs/op.
+    go test -run "^$" -bench "^Benchmark" -benchmem ./...
 
-Those values describe the previous small workload and are not reused as a Task 3 claim. Run current measurements with:
+Environment: linux/amd64, AMD EPYC 7763 64-Core Processor, Go 1.24 toolchain.
 
-    go test -run '^$' -bench '^Benchmark' -benchmem ./...
+Measured output:
 
-Meaningful scale benchmarks for 10k/50k normalized-resource ingestion, persistence, graph construction, rule evaluation, attack paths, blast radius, repeated rescans, and finding lifecycle remain a verification item. Record command, hardware, Go version, dataset seed, and raw output before reporting numbers.
+- BenchmarkDemoSnapshot: 3,783 ns/op, 5,936 B/op, 39 allocs/op.
+- BenchmarkNetworkReachability: 126.3 ns/op, 112 B/op, 3 allocs/op.
+- BenchmarkReplayCollection: 7,556 ns/op, 8,399 B/op, 69 allocs/op.
+- BenchmarkBlastRadius10kNodes50kEdges: 2,591,327 ns/op, 874,621 B/op, 111 allocs/op.
+
+The scale benchmark constructs 10,000 nodes and 50,006 edges; the benchmark name records the intended 50,000-edge workload plus six deterministic reachable edges. These are hosted synthetic measurements, not production latency or memory guarantees. Persistence, API latency, 50k/250k graph loading, and full scan throughput remain future measurements.
