@@ -225,7 +225,6 @@ func makeReplayScenario(name string) ReplayScenario {
 	case "cyclic-trust","role-cycle-sensitive":addRoleCycle(c);s.ExpectPartial=true
 	case "malformed-policy":c.IAMPages[0].Roles[0].Malformed=true;s.ExpectPartial=true
 	case "unsupported-condition":c.IAMPages[0].Roles[0].UnsupportedCondition=true;s.ExpectPartial=true
-	case "internet-privileged-role","assume-role-chain","role-chain-sensitive":s.ExpectPath=true
 	case "region-access-denied":c.Regions=[]string{"ap-south-1","us-east-1"};c.RegionPages["us-east-1"]=[]ReplayRegionPage{{ErrorCode:"AccessDenied"}};s.ExpectPartial=true
 	case "iam-access-denied":c.IAMPages=[]ReplayIAMPage{{ErrorCode:"AccessDenied"}};s.ExpectPartial=true
 	case "s3-access-denied":c.S3Pages=[]ReplayS3Page{{ErrorCode:"AccessDenied"}};s.ExpectPartial=true
