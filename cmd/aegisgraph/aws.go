@@ -374,8 +374,40 @@ func (c *liveAWSClient) loadUsers(ctx context.Context)([]ReplayUser,error) {
 	for {
 		page,err:=c.iamClient.ListUsers(ctx,&iam.ListUsersInput{Marker:token})
 		if err!=nil{return out,err}
-		for _,user:=range page.Users {out=append(out,ReplayUser{Name:aws.ToString(user.UserName),ARN:aws.ToString(user.Arn)})}
+		for _,user:=range page.Users {
+			name:=aws.ToString(user.UserName)
+			policies,policyErr:=c.userPolicies(ctx,name)
+			item:=ReplayUser{Name:name,ARN:aws.ToString(user.Arn),Policies:policies}
+			if policyErr!=nil { item.Policies=nil; out=append(out,item); return out,policyErr }
+			out=append(out,item)
+		}
 		if aws.ToString(page.Marker)==""{break};token=page.Marker
+	}
+	return out,nil
+}
+
+func (c *liveAWSClient) userPolicies(ctx context.Context,userName string)([]Policy,error) {
+	var out []Policy
+	var token *string
+	for {
+		page,err:=c.iamClient.ListUserPolicies(ctx,&iam.ListUserPoliciesInput{UserName:aws.String(userName),Marker:token})
+		if err!=nil{return out,err}
+		for _,name:=range page.PolicyNames {
+			policy,err:=c.iamClient.GetUserPolicy(ctx,&iam.GetUserPolicyInput{UserName:aws.String(userName),PolicyName:aws.String(name)})
+			if err!=nil{return out,err}
+			parsed,unsupported,err:=parsePolicyDocument(aws.ToString(policy.PolicyDocument))
+			if err!=nil{return out,err}
+			if unsupported{return out,errors.New("unsupported IAM policy condition")}
+			out=append(out,parsed...)
+		}
+		if aws.ToString(page.Marker)==""{break};token=page.Marker
+	}
+	attached,err:=c.iamClient.ListAttachedUserPolicies(ctx,&iam.ListAttachedUserPoliciesInput{UserName:aws.String(userName)})
+	if err!=nil{return out,err}
+	for _,policy:=range attached.AttachedPolicies {
+		document,err:=c.managedPolicyDocument(ctx,aws.ToString(policy.PolicyArn))
+		if err!=nil{return out,err}
+		out=append(out,document...)
 	}
 	return out,nil
 }
