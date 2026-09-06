@@ -15,6 +15,8 @@ The committed Go tests cover the original demo and the offline replay pipeline:
 
 The replay tests are in cmd/aegisgraph/replay_test.go. They compare semantic findings, paths, coverage, identity keys, and evidence rather than unstable full snapshots.
 
+GitHub Actions run 34030372218, job 101478659148, passed gofmt, go vet, Go tests, Go race tests, Go microbenchmarks, frontend install, and frontend production build.
+
 ## Pass 2: adversarial checks
 
 The corpus intentionally includes:
@@ -48,4 +50,4 @@ The resulting path is exactly Internet -> workload -> role -> sensitive resource
 
 These are deterministic synthetic/replay checks. They validate the modeled pipeline and adversarial behavior, not full real-world AWS correctness. The live AWS collector is still only partial STS/EC2, and no live AWS account was used in this verification.
 
-The Work container does not have Go, Docker, or SQLite command-line tooling, so local execution is not claimed. GitHub Actions is the authoritative execution environment; the latest run status and benchmark output must be checked before publishing a final pass.
+The Work container does not have Go, Docker, or SQLite command-line tooling, so local execution is not claimed. Clean Docker and live AWS execution remain unverified.
