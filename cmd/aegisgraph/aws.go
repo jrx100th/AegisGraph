@@ -516,13 +516,19 @@ func (c *liveAWSClient) ListS3(ctx context.Context, token string)(ReplayS3Page,e
 func (c *liveAWSClient) loadS3(ctx context.Context)([]ReplayS3Page,error) {
 	pager:=s3.NewListBucketsPaginator(c.s3Client,&s3.ListBucketsInput{})
 	var buckets []ReplayBucket
+	partialCode:=""
 	for pager.HasMorePages(){
-		page,err:=pager.NextPage(ctx);if err!=nil{return nil,err}
+		page,err:=pager.NextPage(ctx)
+		if err!=nil{return nil,err}
 		for _,bucket:=range page.Buckets{
 			name:=aws.ToString(bucket.Name);if name==""{continue}
 			item:=ReplayBucket{Name:name}
 			location,err:=c.s3Client.GetBucketLocation(ctx,&s3.GetBucketLocationInput{Bucket:aws.String(name)})
-			if err!=nil{return []ReplayS3Page{{Buckets:append(buckets,item),ErrorCode:classifyAWSError(err)}},nil}
+			if err!=nil {
+				if partialCode==""{partialCode=classifyAWSError(err)}
+				buckets=append(buckets,item)
+				continue
+			}
 			item.Region=string(location.LocationConstraint);if item.Region==""{item.Region="us-east-1"}
 			block,blockErr:=c.s3Client.GetPublicAccessBlock(ctx,&s3.GetPublicAccessBlockInput{Bucket:aws.String(name)})
 			if blockErr==nil&&block.PublicAccessBlockConfiguration!=nil{
@@ -536,11 +542,14 @@ func (c *liveAWSClient) loadS3(ctx context.Context)([]ReplayS3Page,error) {
 			if encErr==nil{item.EncryptionKnown=true;item.Encrypted=enc.ServerSideEncryptionConfiguration!=nil}
 			tags,tagErr:=c.s3Client.GetBucketTagging(ctx,&s3.GetBucketTaggingInput{Bucket:aws.String(name)})
 			if tagErr==nil{item.Sensitive=tagsContainSensitive(tags.TagSet)}
-			if blockErr!=nil||policyErr!=nil||encErr!=nil{item.PublicKnown=false}
+			if blockErr!=nil||policyErr!=nil||encErr!=nil||tagErr!=nil {
+				item.PublicKnown=false
+				for _,subErr:=range []error{blockErr,policyErr,encErr,tagErr}{if subErr!=nil&&partialCode==""{partialCode=classifyAWSError(subErr)}}
+			}
 			buckets=append(buckets,item)
 		}
 	}
-	return []ReplayS3Page{{Buckets:buckets}},nil
+	return []ReplayS3Page{{Buckets:buckets,ErrorCode:partialCode}},nil
 }
 
 func policyDocumentPublic(raw string)bool {
