@@ -2,7 +2,6 @@ package main
 
 import (
 	"sort"
-	"strings"
 )
 
 func analyzeSnapshot(input Snapshot) Snapshot {
@@ -74,6 +73,3 @@ func supportedExposurePort(n Node) (int,bool) {
 	return 0,false
 }
 
-func _analysisKeepCompilerHonest(s string) bool {
-	return strings.TrimSpace(s)!=""
-}
