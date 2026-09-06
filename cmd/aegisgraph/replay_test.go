@@ -11,7 +11,7 @@ func hasCoverageState(s Snapshot,state string) bool {for _,c:=range s.Coverage{i
 
 func TestReplayCatalogHasBroadScenarioCoverage(t *testing.T) {
 	catalog:=replayScenarioCatalog()
-	if len(catalog)<30 {t.Fatalf("scenario corpus has %d cases; need at least 30",len(catalog))}
+	if len(catalog)<70 {t.Fatalf("scenario corpus has %d cases; need at least 70",len(catalog))}
 	classes:=map[string]int{}
 	for _,scenario:=range catalog{classes[scenario.Class]++}
 	if classes["lifecycle"]<5 {t.Fatalf("lifecycle corpus too small: %d",classes["lifecycle"])}
@@ -106,6 +106,16 @@ func TestReplaySupportedRiskSuiteHasTenPositiveCases(t *testing.T) {
 		"internet-sensitive-s3": "AG-COMB-002",
 		"assume-role-chain": "AG-COMB-002",
 		"role-chain-sensitive": "AG-COMB-002",
+		"multi-page-late-risk": "AG-NET-001",
+		"managed-inline-risk": "AG-NET-001",
+		"role-chain-risk": "AG-NET-001",
+		"rds-risk": "AG-NET-003",
+		"rds-public-open": "AG-NET-003",
+		"equivalent-pagination": "AG-NET-001",
+		"equivalent-adapter": "AG-NET-001",
+		"lambda-related": "AG-NET-001",
+		"cross-account-isolation": "AG-NET-001",
+		"managed-policy-default-version": "AG-IAM-001",
 	}
 	for name, rule := range expected {
 		result, err := collectReplay(context.Background(), makeReplayScenario(name).Client)
@@ -133,6 +143,13 @@ func TestReplayFalsePositiveTrapSuite(t *testing.T) {
 		"trust-negative",
 		"cross-account-trust",
 		"internet-denied-sensitive-s3",
+		"rds-public-network-blocked",
+		"s3-public-state-unknown",
+		"lambda-unknown-exposure",
+		"rds-missing-network",
+		"finding-current-partial",
+		"equivalent-access-denied",
+		"s3-public-blocked",
 	}
 	for _, name := range traps {
 		result, err := collectReplay(context.Background(), makeReplayScenario(name).Client)
