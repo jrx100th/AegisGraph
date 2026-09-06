@@ -325,7 +325,7 @@ func demoSnapshot(env string) Snapshot {
 		{Key:"aws:subnet:subnet-demo",Type:"SUBNET",Name:"demo-public-subnet",Account:"111111111111",Region:"ap-south-1"},
 		{Key:"aws:ec2:i-demo",Type:"EC2",Name:"demo-workload",Account:"111111111111",Region:"ap-south-1"},
 		{Key:"aws:role:demo-role",Type:"IAM_ROLE",Name:"demo-workload-role",Account:"111111111111"},
-		{Key:"aws:s3:demo-sensitive",Type:"S3_BUCKET",Name:"demo-sensitive-data",Account:"111111111111",Sensitive:true},
+		{Key:"aws:s3:demo-sensitive",Type:"S3_BUCKET",Name:"demo-sensitive",Account:"111111111111",Sensitive:true},
 	}
 	edges:=[]Edge{
 		{From:"aws:account:111111111111",To:"aws:vpc:vpc-demo",Type:"CONTAINS",Evidence:"Account inventory fixture"},
