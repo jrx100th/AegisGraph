@@ -360,7 +360,7 @@ func networkReachable(n Node) (bool,[]string) {
 	ev=append(ev,"Resource has a public address")
 	if !n.RouteIGW { return false,append(ev,"No verified 0.0.0.0/0 route to an Internet Gateway") }
 	ev=append(ev,"Subnet route table has a verified Internet Gateway route")
-	for _,in:=range n.Ingress { if in.CIDR=="0.0.0.0/0" && in.Protocol=="tcp" && (in.FromPort<=22 && in.ToPort>=22 || in.FromPort<=3389 && in.ToPort>=3389) { return true,append(ev,"Security Group permits a supported sensitive TCP port from 0.0.0.0/0") } }
+	if _,ok:=supportedExposurePort(n); ok { return true,append(ev,"Security Group permits a supported sensitive TCP port from 0.0.0.0/0") }
 	return false,append(ev,"No supported open sensitive TCP port in the Security Group")
 }
 func hasOpenPort(n Node,port int) bool { for _,in:=range n.Ingress { if in.Protocol=="tcp" && in.CIDR=="0.0.0.0/0" && in.FromPort<=port && in.ToPort>=port { return true } }; return false }
