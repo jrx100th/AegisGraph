@@ -312,9 +312,38 @@ func (s *Server) blastRadius(w http.ResponseWriter, r *http.Request) {
 	if id=="" { writeError(w,400,errors.New("path id required")); return }
 	var nodes,evidence string; var score int
 	err:=s.db.QueryRow("SELECT nodes,evidence,score FROM attack_paths WHERE path_key=? LIMIT 1",id).Scan(&nodes,&evidence,&score)
-	if err!=nil { writeError(w,404,errors.New("path not found")); return }
-	var ns,ev []string; _=json.Unmarshal([]byte(nodes),&ns); _=json.Unmarshal([]byte(evidence),&ev)
-	writeJSON(w,http.StatusOK,map[string]any{"source":ns[0],"reachable_nodes":ns[1:],"evidence":ev,"depth":len(ns)-1,"score":score,"uncertainty":"Only supported capability transitions are included."})
+	if err==nil {
+		var ns,ev []string; _=json.Unmarshal([]byte(nodes),&ns); _=json.Unmarshal([]byte(evidence),&ev)
+		if len(ns)==0 { writeError(w,500,errors.New("stored path has no source")); return }
+		writeJSON(w,http.StatusOK,map[string]any{"source":ns[0],"reachable_nodes":ns[1:],"evidence":ev,"depth":len(ns)-1,"score":score,"uncertainty":"Only supported capability transitions are included."})
+		return
+	}
+	snapshot,err:=s.currentSnapshot()
+	if err!=nil { writeError(w,500,err); return }
+	radius:=computeBlastRadius(snapshot,id,3)
+	if !radius.Unknown && len(radius.Nodes)==0 {
+		exists:=false
+		for _,n:=range snapshot.Nodes { if n.Key==id { exists=true; break } }
+		if !exists { writeError(w,404,errors.New("path or node not found")); return }
+	}
+	writeJSON(w,http.StatusOK,map[string]any{"source":radius.Source,"reachable_nodes":radius.Nodes,"evidence":radius.Evidence,"depth":3,"uncertainty":radius.Unknown})
+}
+
+func (s *Server) currentSnapshot() (Snapshot,error) {
+	snapshot:=Snapshot{}
+	rows,err:=s.db.Query("SELECT node_key,node_type,name,account_id,region,properties FROM nodes ORDER BY node_key")
+	if err!=nil{return snapshot,err}
+	defer rows.Close()
+	for rows.Next() {
+		var n Node; var properties string
+		if err:=rows.Scan(&n.Key,&n.Type,&n.Name,&n.Account,&n.Region,&properties);err!=nil{return snapshot,err}
+		snapshot.Nodes=append(snapshot.Nodes,n)
+	}
+	edges,err:=s.db.Query("SELECT source_key,destination_key,edge_type,evidence FROM edges ORDER BY source_key,destination_key,edge_type")
+	if err!=nil{return snapshot,err}
+	defer edges.Close()
+	for edges.Next(){var e Edge;if err:=edges.Scan(&e.From,&e.To,&e.Type,&e.Evidence);err!=nil{return snapshot,err};snapshot.Edges=append(snapshot.Edges,e)}
+	return snapshot,nil
 }
 
 func (s *Server) frontend() http.Handler {
