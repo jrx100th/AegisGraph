@@ -362,8 +362,10 @@ func demoSnapshot(env string) Snapshot {
 
 func networkReachable(n Node) (bool,[]string) {
 	ev:=[]string{}
+	if n.Type=="RDS" && !n.PublicKnown { return false,append(ev,"UNKNOWN: public accessibility metadata is incomplete") }
 	if !n.PublicIP { return false,append(ev,"No public address prerequisite") }
 	ev=append(ev,"Resource has a public address")
+	if n.Type=="RDS" && !n.RouteKnown { return false,append(ev,"UNKNOWN: RDS subnet route evidence is incomplete") }
 	if !n.RouteIGW { return false,append(ev,"No verified 0.0.0.0/0 route to an Internet Gateway") }
 	ev=append(ev,"Subnet route table has a verified Internet Gateway route")
 	if _,ok:=supportedExposurePort(n); ok { return true,append(ev,"Security Group permits a supported sensitive TCP port from 0.0.0.0/0") }
