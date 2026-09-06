@@ -18,6 +18,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
+      - name: Resolve Go dependencies
+        run: go mod tidy
       - name: Format Go
         run: gofmt -w $(find . -name '*.go' -type f)
       - name: Go vet
