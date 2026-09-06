@@ -196,11 +196,12 @@ func (s *Server) demoLoad(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) awsScan(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost { writeError(w,405,errors.New("POST required")); return }
-	writeJSON(w,http.StatusNotImplemented,map[string]any{
-		"status":"NOT_IMPLEMENTED",
-		"message":"AWS collector interface is reserved but live discovery is not enabled in this build. No credentials were accepted or persisted.",
-		"next":"Use demo mode. Implement and verify read-only AWS SDK collectors before enabling this endpoint.",
-	})
+	ctx,cancel:=context.WithTimeout(r.Context(),10*time.Minute); defer cancel()
+	snapshot,err:=collectAWS(ctx)
+	if err!=nil { writeJSON(w,http.StatusBadGateway,map[string]any{"status":"FAILED","message":"AWS discovery failed before a complete snapshot could be persisted.","error":err.Error()}); return }
+	id,err:=s.persist(snapshot)
+	if err!=nil { writeError(w,500,err); return }
+	writeJSON(w,http.StatusOK,map[string]any{"scan_id":id,"environment":"aws","status":"PARTIAL","coverage":snapshot.Coverage,"assets":len(snapshot.Nodes),"message":"AWS inventory is intentionally partial; network/IAM findings are not asserted by this collector yet."})
 }
 
 func (s *Server) assets(w http.ResponseWriter, r *http.Request) {
