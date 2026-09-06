@@ -92,3 +92,55 @@ func TestReplayPersistsNormalizedResults(t *testing.T) {
 	for _,q:=range []struct{name string;dst *int}{{"nodes",&nodes},{"edges",&edges},{"findings",&findings},{"attack_paths",&paths}}{if err:=db.QueryRow("SELECT COUNT(*) FROM "+q.name).Scan(q.dst);err!=nil{t.Fatal(err)}}
 	if nodes==0||edges==0||findings==0||paths==0{t.Fatalf("persistence lost replay output: nodes=%d edges=%d findings=%d paths=%d",nodes,edges,findings,paths)}
 }
+
+
+func TestReplaySupportedRiskSuiteHasTenPositiveCases(t *testing.T) {
+	expected := map[string]string{
+		"public-ssh": "AG-NET-001",
+		"public-rdp": "AG-NET-002",
+		"public-rds": "AG-NET-003",
+		"multiple-security-groups": "AG-NET-001",
+		"out-of-order-pages": "AG-NET-001",
+		"wildcard-allow": "AG-IAM-001",
+		"internet-privileged-role": "AG-COMB-002",
+		"internet-sensitive-s3": "AG-COMB-002",
+		"assume-role-chain": "AG-COMB-002",
+		"role-chain-sensitive": "AG-COMB-002",
+	}
+	for name, rule := range expected {
+		result, err := collectReplay(context.Background(), makeReplayScenario(name).Client)
+		if err != nil {
+			t.Fatalf("%s: %v", name, err)
+		}
+		if !hasFindingRule(result.Snapshot, rule) {
+			t.Fatalf("%s: expected supported-risk finding %s", name, rule)
+		}
+	}
+}
+
+func TestReplayFalsePositiveTrapSuite(t *testing.T) {
+	traps := []string{
+		"private-ec2",
+		"public-ip-no-route",
+		"igw-no-public-ip",
+		"wrong-port",
+		"restricted-cidr",
+		"private-rds",
+		"simple-deny",
+		"wildcard-allow-explicit-deny",
+		"action-mismatch",
+		"resource-mismatch",
+		"trust-negative",
+		"cross-account-trust",
+		"internet-denied-sensitive-s3",
+	}
+	for _, name := range traps {
+		result, err := collectReplay(context.Background(), makeReplayScenario(name).Client)
+		if err != nil {
+			t.Fatalf("%s: %v", name, err)
+		}
+		if len(result.Snapshot.Paths) != 0 || hasFindingRule(result.Snapshot, "AG-COMB-002") {
+			t.Fatalf("%s: unsupported compound conclusion was generated: paths=%d findings=%#v", name, len(result.Snapshot.Paths), result.Snapshot.Findings)
+		}
+	}
+}
