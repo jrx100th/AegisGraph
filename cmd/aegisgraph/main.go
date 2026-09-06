@@ -42,15 +42,15 @@ type Edge struct {
 	Evidence string
 }
 type Policy struct {
-	Effect string
-	Action string
-	Resource string
+	Effect string `json:"effect"`
+	Action string `json:"action"`
+	Resource string `json:"resource"`
 }
 type Ingress struct {
-	Protocol string
-	FromPort int
-	ToPort int
-	CIDR string
+	Protocol string `json:"protocol"`
+	FromPort int `json:"from_port"`
+	ToPort int `json:"to_port"`
+	CIDR string `json:"cidr"`
 }
 type Finding struct {
 	RuleID string
