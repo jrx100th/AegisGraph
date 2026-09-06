@@ -24,10 +24,15 @@ type Node struct {
 	Account string
 	Region string
 	PublicIP bool
+	PublicKnown bool
 	RouteIGW bool
+	RouteKnown bool
 	Sensitive bool
+	Encrypted bool
+	EncryptionKnown bool
 	Policies []Policy
 	Ingress []Ingress
+	Metadata map[string]string
 }
 type Edge struct {
 	From string
@@ -307,7 +312,7 @@ func (s *Server) persist(snapshot Snapshot) (int64,error) {
 	res,err:=tx.Exec("INSERT INTO scans(environment,status,created_at) VALUES(?,?,?)",snapshot.Environment,"COMPLETE",now);if err!=nil{return 0,err}
 	scanID,err:=res.LastInsertId();if err!=nil{return 0,err}
 	for _,n:=range snapshot.Nodes {
-		props,_:=json.Marshal(map[string]any{"public_ip":n.PublicIP,"route_to_internet_gateway":n.RouteIGW,"sensitive":n.Sensitive,"policies":n.Policies,"ingress":n.Ingress})
+		props,_:=json.Marshal(map[string]any{"public_ip":n.PublicIP,"public_known":n.PublicKnown,"route_to_internet_gateway":n.RouteIGW,"route_known":n.RouteKnown,"sensitive":n.Sensitive,"encrypted":n.Encrypted,"encryption_known":n.EncryptionKnown,"policies":n.Policies,"ingress":n.Ingress,"metadata":n.Metadata})
 		if _,err:=tx.Exec("INSERT INTO nodes(scan_id,node_key,node_type,name,account_id,region,properties) VALUES(?,?,?,?,?,?,?)",scanID,n.Key,n.Type,n.Name,n.Account,n.Region,string(props));err!=nil{return 0,err}
 	}
 	for _,e:=range snapshot.Edges { if _,err:=tx.Exec("INSERT INTO edges(scan_id,source_key,destination_key,edge_type,evidence) VALUES(?,?,?,?,?)",scanID,e.From,e.To,e.Type,e.Evidence);err!=nil{return 0,err} }
