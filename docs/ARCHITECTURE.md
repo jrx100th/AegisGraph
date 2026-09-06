@@ -1,35 +1,39 @@
 # Architecture
 
-AegisGraph is a single-process service. The Go binary owns the API, deterministic analysis, and SQLite database. The compiled React application is static content served by the same binary in packaged deployments.
+AegisGraph is a single-process service. The Go binary owns AWS/replay adapters, shared collectors, deterministic analysis, HTTP APIs, and SQLite. The compiled React application is static content served by the binary in packaged deployments.
 
-## Boundary
+## Source boundary
 
-The frontend only calls bounded JSON endpoints. It never receives credentials. The backend owns discovery, normalization, graph persistence, evidence, rule evaluation, path computation, and risk calculation.
+Official AWS SDK clients and replay clients are adapters only. Both implement the same narrow ReplayClient contract:
 
-## Persistence
+- caller identity and region discovery;
+- paginated regional EC2/network responses;
+- paginated IAM, S3, RDS, and Lambda responses.
 
-SQLite uses foreign keys, WAL mode, transactions, stable node keys, and indexes on node type/key, edge endpoints, finding severity, and path score. A scan replacement transaction deletes prior materialized results before inserting one complete synthetic snapshot. Live scans must evolve this into per-scan lifecycle retention with explicit stale/deleted states.
+Collectors do not receive AWS SDK response types. They consume provider-neutral replay-domain response objects and produce one normalized Snapshot. There is exactly one collector implementation per supported service.
 
-## Domain and graph
+## Pipeline
 
-Nodes have canonical keys, provider/account/region identity, type, display name, normalized properties, and provenance through scan-linked records. Edges are typed and carry evidence. The runtime currently reads the relational graph directly for API output; a compact adjacency structure should be introduced when traversal scale is measured.
+```
+adapter -> service-shaped page -> shared collector/normalizer
+        -> typed nodes/edges -> deterministic analysis
+        -> findings/paths/blast-radius -> SQLite -> API/UI
+```
+
+The live path is LIVE_AWS_IMPLEMENTED and LIVE_AWS_UNVERIFIED until an authorized AWS account is used. Replay is REPLAY_VERIFIED.
+
+## Persistence and lifecycle
+
+SQLite uses foreign keys, WAL mode, bounded API queries, transactions, and indexes on node types/keys, edge endpoints, findings, and path scores. Scans are append-only records with source environment, account, timestamps, and coverage. A COMPLETE scan transaction replaces current materialized nodes, edges, findings, and paths. PARTIAL, FAILED, RUNNING, and PENDING scans record coverage but do not retire current resources or resolve current findings. Finding history tracks stable rule/resource keys, first/last seen, and resolved state.
 
 ## Analysis
 
-The demo pipeline is:
-
-fixture -> typed nodes/edges -> SQLite -> network evaluation -> bounded IAM matching -> findings -> allowed security transitions -> attack paths/blast radius -> API/UI.
-
-The only currently supported transitions are Internet to verified exposed workload, workload to attached role, and supported role access to a marked sensitive resource. Containment never creates attacker capability.
-
-## Failure model
-
-Missing or unsupported prerequisites produce no positive security conclusion. Live collection must record service coverage as COMPLETE, PARTIAL, FAILED, or NOT_ATTEMPTED and must never label a partial account as complete.
+Network exposure requires supported addressing, an Internet Gateway route, and an open supported TCP rule. IAM matching supports normalized Allow/Deny action/resource pairs, wildcard matching, and explicit Deny precedence. Unsupported semantics remain partial/unknown. Attack paths and blast radius traverse only allowlisted security transitions; containment is never attacker capability.
 
 ## Concurrency and scaling
 
-The current demo uses one SQLite connection and no background goroutines. Future collectors should use context cancellation and bounded workers. PostgreSQL is a future adapter only after measurements show SQLite is insufficient.
+The current service uses one SQLite connection and no background goroutines. Live AWS calls use context-aware SDK clients and SDK pagination. Future bounded worker pools and PostgreSQL are measurement-driven options, not required infrastructure.
 
-## Future modules
+## Failure model
 
-The next refactor should separate internal/domain, internal/store, internal/engine, internal/aws, and internal/http packages without changing the public semantics.
+Service errors are attributed to service/region coverage. AccessDenied, throttling, transient failures, missing fields, pagination cycles, and unsupported semantics cannot silently become complete or safe conclusions.
