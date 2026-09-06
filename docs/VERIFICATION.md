@@ -1,53 +1,19 @@
 # Verification record
 
-## Pass 1: implementation checks
+## Pass 1: implementation verification
 
-The committed Go tests cover the original demo and the offline replay pipeline:
+The Go suite covers shared live/replay adapter equivalence; 80 replay scenarios; 20 supported-risk cases; 20 false-positive traps; EC2/RDS network prerequisites; IAM Allow/Deny, wildcard, URL-decoded documents, malformed documents, unsupported Conditions, trust cycles, and account/region isolation; S3 uncertainty; RDS/Lambda normalization; pagination; empty pages; AccessDenied; throttling/transient errors; missing fields; complete/partial persistence; finding resolution; bounded capability-only blast radius; and strict JSON fixture validation.
 
-- public address without an Internet Gateway route;
-- correct route plus an open supported port;
-- wrong port and restricted CIDR rejection;
-- explicit Deny overriding wildcard Allow;
-- 49 collector replay scenarios;
-- pagination, empty pages, AccessDenied, throttling/transient errors, malformed metadata, duplicate-looking identities, and partial scan retention;
-- 10 explicit supported-risk cases and 13 false-positive traps;
-- normalized replay output persisted through the real SQLite persistence method.
+Tests compare semantic findings, paths, coverage, identities, and evidence rather than unstable ordering.
 
-The replay tests are in cmd/aegisgraph/replay_test.go. They compare semantic findings, paths, coverage, identity keys, and evidence rather than unstable full snapshots.
+## Pass 2: adversarial verification
 
-GitHub Actions run 34030372218, job 101478659148, passed gofmt, go vet, Go tests, Go race tests, Go microbenchmarks, frontend install, and frontend production build.
+The corpus attempts false positives from public IPs without routes, routes without public addresses, wrong ports, restricted CIDRs, incomplete S3 state, RDS public flags without network evidence, Lambda existence, denied IAM access, unsupported Conditions, cycles, missing service data, and partial scans. Expected outcomes are no equivalent high-severity conclusion or explicit partial/unknown state.
 
-## Pass 2: adversarial checks
+## Pass 3: independent reconstruction
 
-The corpus intentionally includes:
+A representative replay path is reconstructed from raw regional, subnet, Security Group, instance, IAM, and S3 fields. Shared analysis emits Internet -> workload -> role -> sensitive resource with evidence for each transition. Blast radius traverses only RUNS_AS, CAN_ACCESS, and CAN_ASSUME edges; containment is excluded, cycles are visited once, and missing targets are uncertain.
 
-- public IP without a route;
-- Internet route without a public address;
-- wrong protocol/port and restricted source CIDR;
-- missing route or Security Group data;
-- unsupported IPv6/NACL information;
-- contradictory IAM Allow/Deny;
-- malformed policies, unsupported conditions, cross-account/permission-boundary/SCP uncertainty;
-- cyclic trust;
-- AccessDenied, throttling, transient failure, empty pages, and resource disappearance during complete versus partial scans.
+These are DEMO_VERIFIED and REPLAY_VERIFIED results. The live path is LIVE_AWS_IMPLEMENTED and LIVE_AWS_UNVERIFIED; no live AWS account was used, so LIVE_AWS_VALIDATED is not claimed. Replay is not proof of complete AWS correctness.
 
-The test suite prevents an unsupported compound path from being generated in the false-positive traps. A partial scan does not retire an existing resource in ReplayScanLedger.
-
-## Pass 3: independent evidence reconstruction
-
-For the replay attack-path fixture, the result can be reconstructed without trusting the path builder:
-
-1. the raw regional response gives the workload a public address;
-2. the raw subnet response marks a known Internet Gateway route;
-3. the raw Security Group response permits TCP/22 from 0.0.0.0/0;
-4. the raw instance response attaches demo-role;
-5. the raw IAM response gives demo-role s3:GetObject on the sensitive bucket ARN;
-6. the raw S3 response marks demo-sensitive as sensitive.
-
-The resulting path is exactly Internet -> workload -> role -> sensitive resource, with one evidence record per transition. The denied-policy fixture has the same modeled exposure but an explicit supported Deny and produces no equivalent compound path.
-
-## Truth boundary
-
-These are deterministic synthetic/replay checks. They validate the modeled pipeline and adversarial behavior, not full real-world AWS correctness. The live AWS collector is still only partial STS/EC2, and no live AWS account was used in this verification.
-
-The Work container does not have Go, Docker, or SQLite command-line tooling, so local execution is not claimed. Clean Docker and live AWS execution remain unverified.
+GitHub Actions executes formatting, vet, tests, race tests, benchmarks, and frontend build. Local Go/Docker/SQLite CLI execution was unavailable in this Work container.
