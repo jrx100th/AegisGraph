@@ -144,3 +144,82 @@ func TestReplayFalsePositiveTrapSuite(t *testing.T) {
 		}
 	}
 }
+
+
+func TestReplayLifecycleCompleteVsPartialDisappearance(t *testing.T) {
+	initial, err := collectReplay(context.Background(), makeReplayScenario("public-ssh").Client)
+	if err != nil {
+		t.Fatal(err)
+	}
+	key := "aws:ec2:111111111111:ap-south-1:i-demo"
+	ledger := NewReplayScanLedger()
+	ledger.Apply(initial.Snapshot, initial.Status)
+	if !ledger.Contains(key) {
+		t.Fatal("initial complete scan did not retain workload")
+	}
+
+	completeClient := baseSimulatedAWS()
+	completeClient.RegionPages["ap-south-1"] = []ReplayRegionPage{{}}
+	complete, err := collectReplay(context.Background(), completeClient)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if complete.Status != "COMPLETE" {
+		t.Fatalf("empty complete response unexpectedly became %s", complete.Status)
+	}
+	ledger.Apply(complete.Snapshot, complete.Status)
+	if ledger.Contains(key) {
+		t.Fatal("complete scan did not retire a resource that disappeared")
+	}
+
+	ledger.Apply(initial.Snapshot, initial.Status)
+	partialClient := baseSimulatedAWS()
+	partialClient.IAMPages = []ReplayIAMPage{{ErrorCode: "AccessDenied"}}
+	partialClient.RegionPages["ap-south-1"] = []ReplayRegionPage{{}}
+	partial, err := collectReplay(context.Background(), partialClient)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if partial.Status != "PARTIAL" {
+		t.Fatalf("incomplete response unexpectedly became %s", partial.Status)
+	}
+	ledger.Apply(partial.Snapshot, partial.Status)
+	if !ledger.Contains(key) {
+		t.Fatal("partial scan incorrectly retired a prior resource")
+	}
+}
+
+func TestReplayRepeatedPersistenceHasStableCardinality(t *testing.T) {
+	db, err := openDB(t.TempDir()+"/repeat.db")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	result, err := collectReplay(context.Background(), makeReplayScenario("internet-sensitive-s3").Client)
+	if err != nil {
+		t.Fatal(err)
+	}
+	server := &Server{db: db}
+	for i := 0; i < 2; i++ {
+		if _, err := server.persist(result.Snapshot); err != nil {
+			t.Fatalf("persist pass %d: %v", i+1, err)
+		}
+	}
+	var nodes, edges, findings, paths int
+	for _, query := range []struct {
+		name string
+		dst  *int
+	}{
+		{"nodes", &nodes},
+		{"edges", &edges},
+		{"findings", &findings},
+		{"attack_paths", &paths},
+	} {
+		if err := db.QueryRow("SELECT COUNT(*) FROM "+query.name).Scan(query.dst); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if nodes == 0 || edges == 0 || findings == 0 || paths == 0 {
+		t.Fatalf("repeat persistence lost output: nodes=%d edges=%d findings=%d paths=%d", nodes, edges, findings, paths)
+	}
+}
