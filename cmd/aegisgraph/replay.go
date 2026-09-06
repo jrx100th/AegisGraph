@@ -324,8 +324,9 @@ func makeReplayScenario(name string) ReplayScenario {
 	case "s3-policy-access-denied":c.S3Pages=[]ReplayS3Page{{ErrorCode:"AccessDenied"}};s.ExpectPartial=true
 	case "lambda-execution-role","lambda-no-vpc","lambda-vpc","lambda-missing-role","lambda-unknown-exposure","lambda-related":c.LambdaPages["ap-south-1"]=[]ReplayLambdaPage{{Functions:[]ReplayLambda{{ID:"arn:aws:lambda:ap-south-1:111111111111:function:lab",Name:"lab",RoleName:"demo-role"}}}}
 	case "equivalent-access-denied":c.IAMPages=[]ReplayIAMPage{{ErrorCode:"AccessDenied"}};s.ExpectPartial=true
-	case "multi-page-late-risk","managed-inline-risk","role-chain-risk","equivalent-pagination":makePublicSSH(c)
-	case "managed-policy-default-version","url-encoded-policy","mixed-inline-managed":addSensitiveAllow(c)
+	case "multi-page-late-risk","managed-inline-risk","role-chain-risk","equivalent-pagination","equivalent-adapter","lambda-related","cross-account-isolation":makePublicSSH(c)
+	case "managed-policy-default-version":addWildcardAllow(c);s.ExpectRule="AG-IAM-001"
+	case "url-encoded-policy","mixed-inline-managed":addSensitiveAllow(c)
 	case "malformed-url-encoding":c.IAMPages[0].Roles[0].Malformed=true;s.ExpectPartial=true
 	case "trust-unsupported-condition":c.IAMPages[0].Roles[0].UnsupportedCondition=true;s.ExpectPartial=true
 	}
@@ -333,7 +334,7 @@ func makeReplayScenario(name string) ReplayScenario {
 	if name=="internet-privileged-role"{addWildcardAllow(c)}
 	if name=="internet-sensitive-s3"||name=="assume-role-chain"||name=="role-chain-sensitive"{addSensitiveAllow(c)}
 	if name=="internet-denied-sensitive-s3"{makePublicSSH(c);addSensitiveDeny(c)}
-	if name=="public-ssh"||name=="multiple-security-groups"||name=="out-of-order-pages"||name=="multi-page-late-risk"||name=="managed-inline-risk"||name=="role-chain-risk"||name=="equivalent-pagination"{s.ExpectRule="AG-NET-001"}
+	if name=="public-ssh"||name=="multiple-security-groups"||name=="out-of-order-pages"||name=="multi-page-late-risk"||name=="managed-inline-risk"||name=="role-chain-risk"||name=="equivalent-pagination"||name=="equivalent-adapter"||name=="lambda-related"||name=="cross-account-isolation"{s.ExpectRule="AG-NET-001"}
 	if name=="internet-sensitive-s3"||name=="internet-privileged-role"||name=="assume-role-chain"||name=="role-chain-sensitive"{s.ExpectPath=true;s.ExpectRule="AG-COMB-002"}
 	if strings.Contains(name,"denied-sensitive"){s.ExpectNoRule="AG-COMB-002"}
 	if s.ExpectPartial{s.Class="failure"}
