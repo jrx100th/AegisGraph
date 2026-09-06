@@ -322,7 +322,8 @@ func makeReplayScenario(name string) ReplayScenario {
 	case "s3-public-blocked":c.S3Pages[0].Buckets[0].PublicAccessKnown=true;c.S3Pages[0].Buckets[0].PublicAccessBlocked=true;c.S3Pages[0].Buckets[0].PolicyKnown=true;c.S3Pages[0].Buckets[0].PolicyPublic=true
 	case "s3-public-state-unknown":c.S3Pages[0].Buckets[0].PublicAccessKnown=false;c.S3Pages[0].Buckets[0].PolicyKnown=false
 	case "s3-policy-access-denied":c.S3Pages=[]ReplayS3Page{{ErrorCode:"AccessDenied"}};s.ExpectPartial=true
-	case "lambda-execution-role","lambda-no-vpc","lambda-vpc","lambda-missing-role","lambda-unknown-exposure","lambda-related":c.LambdaPages["ap-south-1"]=[]ReplayLambdaPage{{Functions:[]ReplayLambda{{ID:"arn:aws:lambda:ap-south-1:111111111111:function:lab",Name:"lab",RoleName:"demo-role"}}}}
+	case "lambda-execution-role","lambda-no-vpc","lambda-vpc","lambda-missing-role","lambda-unknown-exposure":c.LambdaPages["ap-south-1"]=[]ReplayLambdaPage{{Functions:[]ReplayLambda{{ID:"arn:aws:lambda:ap-south-1:111111111111:function:lab",Name:"lab",RoleName:"demo-role"}}}}
+	case "lambda-related":makePublicSSH(c);c.LambdaPages["ap-south-1"]=[]ReplayLambdaPage{{Functions:[]ReplayLambda{{ID:"arn:aws:lambda:ap-south-1:111111111111:function:lab",Name:"lab",RoleName:"demo-role"}}}}
 	case "equivalent-access-denied":c.IAMPages=[]ReplayIAMPage{{ErrorCode:"AccessDenied"}};s.ExpectPartial=true
 	case "multi-page-late-risk","managed-inline-risk","role-chain-risk","equivalent-pagination","equivalent-adapter","lambda-related","cross-account-isolation":makePublicSSH(c)
 	case "managed-policy-default-version":addWildcardAllow(c);s.ExpectRule="AG-IAM-001"
