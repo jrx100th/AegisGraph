@@ -37,6 +37,12 @@ type liveAWSClient struct {
 	s3Pages []ReplayS3Page
 	s3Loaded bool
 	s3LoadErr error
+	rdsPages map[string][]ReplayRDSPage
+	rdsLoaded map[string]bool
+	rdsLoadErr map[string]error
+	lambdaPages map[string][]ReplayLambdaPage
+	lambdaLoaded map[string]bool
+	lambdaLoadErr map[string]error
 	regionState map[string]liveRegionState
 }
 
@@ -55,6 +61,12 @@ func newLiveAWSClient(cfg aws.Config) *liveAWSClient {
 		rdsClients: map[string]*rds.Client{},
 		lambdaClients: map[string]*lambda.Client{},
 		profileRoles: map[string]string{},
+		rdsPages: map[string][]ReplayRDSPage{},
+		rdsLoaded: map[string]bool{},
+		rdsLoadErr: map[string]error{},
+		lambdaPages: map[string][]ReplayLambdaPage{},
+		lambdaLoaded: map[string]bool{},
+		lambdaLoadErr: map[string]error{},
 		regionState: map[string]liveRegionState{},
 	}
 }
@@ -511,30 +523,50 @@ func tagsContainSensitive(tags []s3types.Tag)bool {
 }
 
 func (c *liveAWSClient) ListRDS(ctx context.Context,region,token string)(ReplayRDSPage,error) {
-	client:=c.rds(region)
-	page,err:=client.DescribeDBInstances(ctx,&rds.DescribeDBInstancesInput{Marker:aws.String(token)})
-	if err!=nil{return ReplayRDSPage{},err}
-	state:=c.regionState[region]
-	out:=ReplayRDSPage{}
-	for _,db:=range page.DBInstances{
-		item:=ReplayRDS{ID:aws.ToString(db.DBInstanceIdentifier),Name:aws.ToString(db.DBInstanceIdentifier),Engine:aws.ToString(db.Engine),Public:aws.ToBool(db.PubliclyAccessible),PublicKnown:db.PubliclyAccessible!=nil,Encrypted:aws.ToBool(db.StorageEncrypted),EncryptionKnown:db.StorageEncrypted!=nil,RouteIGW:false,RouteKnown:state.routeKnown}
-		if db.DBSubnetGroup!=nil{for _,subnet:=range db.DBSubnetGroup.Subnets{if id:=aws.ToString(subnet.SubnetIdentifier);id!=""{item.SubnetIDs=append(item.SubnetIDs,id);if state.routeIGW[id]{item.RouteIGW=true}}}}
-		for _,membership:=range db.VpcSecurityGroups{if id:=aws.ToString(membership.VpcSecurityGroupId);id!=""{item.SecurityGroupIDs=append(item.SecurityGroupIDs,id);item.Ingress=append(item.Ingress,state.sgIngress[id]...)}}
-		out.Instances=append(out.Instances,item)
+	if !c.rdsLoaded[region] { c.rdsPages[region],c.rdsLoadErr[region]=c.loadRDS(ctx,region);c.rdsLoaded[region]=true }
+	if c.rdsLoadErr[region]!=nil{return ReplayRDSPage{},c.rdsLoadErr[region]}
+	index:=tokenIndex(token);if index>=len(c.rdsPages[region]){return ReplayRDSPage{},nil}
+	page:=c.rdsPages[region][index];if index+1<len(c.rdsPages[region])&&page.NextToken==""{page.NextToken=fmt.Sprintf("page-%d",index+1)}
+	return page,nil
+}
+
+func (c *liveAWSClient) loadRDS(ctx context.Context,region string)([]ReplayRDSPage,error) {
+	client:=c.rds(region);state:=c.regionState[region];pages:=[]ReplayRDSPage{};var token *string
+	for {
+		page,err:=client.DescribeDBInstances(ctx,&rds.DescribeDBInstancesInput{Marker:token})
+		if err!=nil{return pages,err}
+		out:=ReplayRDSPage{}
+		for _,db:=range page.DBInstances{
+			item:=ReplayRDS{ID:aws.ToString(db.DBInstanceIdentifier),Name:aws.ToString(db.DBInstanceIdentifier),Engine:aws.ToString(db.Engine),Public:aws.ToBool(db.PubliclyAccessible),PublicKnown:db.PubliclyAccessible!=nil,Encrypted:aws.ToBool(db.StorageEncrypted),EncryptionKnown:db.StorageEncrypted!=nil,RouteKnown:state.routeKnown}
+			if db.DBSubnetGroup!=nil{for _,subnet:=range db.DBSubnetGroup.Subnets{if id:=aws.ToString(subnet.SubnetIdentifier);id!=""{item.SubnetIDs=append(item.SubnetIDs,id);if state.routeIGW[id]{item.RouteIGW=true}}}}
+			for _,membership:=range db.VpcSecurityGroups{if id:=aws.ToString(membership.VpcSecurityGroupId);id!=""{item.SecurityGroupIDs=append(item.SecurityGroupIDs,id);item.Ingress=append(item.Ingress,state.sgIngress[id]...)}}
+			out.Instances=append(out.Instances,item)
+		}
+		pages=append(pages,out)
+		if aws.ToString(page.Marker)==""{break};token=page.Marker
 	}
-	out.NextToken=aws.ToString(page.Marker)
-	return out,nil
+	return pages,nil
 }
 
 func (c *liveAWSClient) ListLambda(ctx context.Context,region,token string)(ReplayLambdaPage,error) {
-	page,err:=c.lambda(region).ListFunctions(ctx,&lambda.ListFunctionsInput{Marker:aws.String(token)})
-	if err!=nil{return ReplayLambdaPage{},err}
-	out:=ReplayLambdaPage{NextToken:aws.ToString(page.NextMarker)}
-	for _,fn:=range page.Functions{
-		id:=aws.ToString(fn.FunctionArn);if id==""{id=aws.ToString(fn.FunctionName)}
-		out.Functions=append(out.Functions,ReplayLambda{ID:id,Name:aws.ToString(fn.FunctionName),RoleName:roleNameFromARN(aws.ToString(fn.Role))})
+	if !c.lambdaLoaded[region] { c.lambdaPages[region],c.lambdaLoadErr[region]=c.loadLambda(ctx,region);c.lambdaLoaded[region]=true }
+	if c.lambdaLoadErr[region]!=nil{return ReplayLambdaPage{},c.lambdaLoadErr[region]}
+	index:=tokenIndex(token);if index>=len(c.lambdaPages[region]){return ReplayLambdaPage{},nil}
+	page:=c.lambdaPages[region][index];if index+1<len(c.lambdaPages[region])&&page.NextToken==""{page.NextToken=fmt.Sprintf("page-%d",index+1)}
+	return page,nil
+}
+
+func (c *liveAWSClient) loadLambda(ctx context.Context,region string)([]ReplayLambdaPage,error) {
+	client:=c.lambda(region);pages:=[]ReplayLambdaPage{};var token *string
+	for {
+		page,err:=client.ListFunctions(ctx,&lambda.ListFunctionsInput{Marker:token})
+		if err!=nil{return pages,err}
+		out:=ReplayLambdaPage{}
+		for _,fn:=range page.Functions{ id:=aws.ToString(fn.FunctionArn);if id==""{id=aws.ToString(fn.FunctionName)};out.Functions=append(out.Functions,ReplayLambda{ID:id,Name:aws.ToString(fn.FunctionName),RoleName:roleNameFromARN(aws.ToString(fn.Role))}) }
+		pages=append(pages,out)
+		if aws.ToString(page.NextMarker)==""{break};token=page.NextMarker
 	}
-	return out,nil
+	return pages,nil
 }
 
 func classifyAWSError(err error)string {
