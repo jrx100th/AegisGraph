@@ -230,7 +230,13 @@ func (s *Server) awsScan(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost { writeError(w,405,errors.New("POST required")); return }
 	ctx,cancel:=context.WithTimeout(r.Context(),10*time.Minute); defer cancel()
 	snapshot,err:=collectAWS(ctx)
-	if err!=nil { writeJSON(w,http.StatusBadGateway,map[string]any{"status":"FAILED","message":"AWS discovery failed before a complete snapshot could be persisted.","error":err.Error()}); return }
+	if err!=nil {
+		failed:=Snapshot{Environment:"aws",Status:"FAILED",Coverage:[]Coverage{{Service:"aws",State:"FAILED",Message:"AWS discovery failed before caller identity or complete inventory was available."}}}
+		id,persistErr:=s.persistWithStatus(failed,"FAILED")
+		if persistErr!=nil { writeJSON(w,http.StatusBadGateway,map[string]any{"status":"FAILED","message":"AWS discovery failed and failure state could not be persisted.","error":err.Error()}); return }
+		writeJSON(w,http.StatusBadGateway,map[string]any{"scan_id":id,"status":"FAILED","message":"AWS discovery failed before a complete snapshot could be persisted.","error":err.Error()})
+		return
+	}
 	id,err:=s.persistWithStatus(snapshot,snapshot.Status)
 	if err!=nil { writeError(w,500,err); return }
 	status:=snapshot.Status
