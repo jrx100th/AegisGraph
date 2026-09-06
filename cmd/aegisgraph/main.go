@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"flag"
-	"fmt"
 	"log"
 	"net/http"
 	"os"
@@ -287,7 +286,11 @@ func (s *Server) frontend() http.Handler {
 	fs := http.FileServer(http.Dir(s.staticDir))
 	return http.HandlerFunc(func(w http.ResponseWriter,r *http.Request) {
 		if strings.HasPrefix(r.URL.Path,"/api/") { http.NotFound(w,r); return }
-		path := filepath.Join(s.staticDir,filepath.Clean(r.URL.Path))
+		rel := filepath.Clean(strings.TrimPrefix(r.URL.Path, "/"))
+		if rel == ".." || strings.HasPrefix(rel, ".."+string(os.PathSeparator)) {
+			http.ServeFile(w,r,filepath.Join(s.staticDir,"index.html")); return
+		}
+		path := filepath.Join(s.staticDir, rel)
 		if r.URL.Path=="/" || !fileExists(path) { http.ServeFile(w,r,filepath.Join(s.staticDir,"index.html")); return }
 		fs.ServeHTTP(w,r)
 	})
