@@ -2,7 +2,7 @@
 
 ## CURRENT STATE
 
-Repository: jrx100th/AegisGraph. Branch: main. Current milestone: v0.1 deterministic demo slice.
+Repository: jrx100th/AegisGraph. Branch: main. Current milestone: v0.1 deterministic demo slice plus partial read-only EC2 inventory.
 
 ## COMPLETED
 
@@ -18,7 +18,7 @@ Repository: jrx100th/AegisGraph. Branch: main. Current milestone: v0.1 determini
 
 ## IN PROGRESS
 
-- Live AWS read-only discovery and provider normalization.
+- Broader AWS read-only discovery and provider normalization; partial STS/EC2 inventory is now implemented.
 - Wider IAM semantics, resource policies, conditions, and cross-account support.
 - More complete scan lifecycle and stale-resource retention policy.
 
@@ -28,7 +28,7 @@ The repository includes Go adversarial tests. Local execution in the Work contai
 
 ## BENCHMARK STATUS
 
-No benchmark number is claimed yet. The benchmark harness remains a next priority.
+CI benchmark evidence: BenchmarkDemoSnapshot 750.4 ns/op, 3680 B/op, 16 allocs/op; BenchmarkNetworkReachability 63.36 ns/op, 112 B/op, 3 allocs/op on GitHub Actions Go 1.22. These are microbenchmarks, not large-graph claims.
 
 ## KNOWN BUGS
 
@@ -48,7 +48,7 @@ See docs/LIMITATIONS.md. Unsupported semantics must not be interpreted as safe.
 
 ## NEXT HIGHEST PRIORITIES
 
-1. Add AWS SDK collectors with pagination, coverage states, cancellation, and read-only tests.
+1. Extend AWS collectors to IAM, S3, RDS, Lambda, and complete pagination/normalization tests.
 2. Split domain, storage, engine, and HTTP packages before broadening coverage.
 3. Add benchmark generation and pprof evidence.
 4. Add clean-install and container verification from an environment with Go and Docker.
