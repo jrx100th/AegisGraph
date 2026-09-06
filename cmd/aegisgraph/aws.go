@@ -81,19 +81,12 @@ func (c *liveAWSClient) GetCallerIdentity(ctx context.Context) (string, error) {
 
 func (c *liveAWSClient) ListRegions(ctx context.Context) ([]string, error) {
 	client := ec2.NewFromConfig(c.cfg)
-	var regions []string
-	var token *string
-	for {
-		out, err := client.DescribeRegions(ctx, &ec2.DescribeRegionsInput{AllRegions: aws.Bool(false), NextToken: token})
-		if err != nil { return nil, err }
-		for _, region := range out.Regions {
-			if name := aws.ToString(region.RegionName); name != "" { regions = append(regions, name) }
-		}
-		if aws.ToString(out.NextToken) == "" { break }
-		token = out.NextToken
-	}
+	out, err := client.DescribeRegions(ctx, &ec2.DescribeRegionsInput{AllRegions: aws.Bool(false)})
+	if err != nil { return nil, err }
+	regions:=[]string{}
+	for _,region:=range out.Regions { if name:=aws.ToString(region.RegionName);name!=""{regions=append(regions,name)} }
 	sort.Strings(regions)
-	return regions, nil
+	return regions,nil
 }
 
 func (c *liveAWSClient) ec2(region string) *ec2.Client {
