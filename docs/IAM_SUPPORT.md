@@ -1,21 +1,7 @@
 # IAM support
 
-## Deterministic runtime subset
+The shared collector and official AWS adapter represent IAM roles and trust principals, IAM users, instance profiles, inline role/user policies, attached role/user policies, managed-policy metadata and default-version documents, URL-decoded policy documents, Allow/Deny, and string/list Action and Resource values.
 
-The current analysis subset supports:
+Matching supports exact values and trailing wildcards. A supported explicit Deny overrides Allow. Malformed policy documents, unsupported Conditions, unsupported trust Conditions, permission boundaries, SCPs, session policies, resource policies, and incomplete cross-account authorization remain PARTIAL/UNKNOWN; they are never silently converted to Allow.
 
-- identity-policy Allow and Deny records represented by normalized action/resource pairs;
-- exact and trailing-wildcard action matching;
-- exact and trailing-wildcard resource matching;
-- explicit supported Deny overriding Allow;
-- normalized role attachment and trust edges as evidence-bearing graph relationships.
-
-The replay lab represents both inline role policy documents and attached managed-policy documents, and includes malformed, unsupported-condition, cross-account, permission-boundary, SCP, and trust-cycle inputs. Those cases are marked PARTIAL/UNKNOWN rather than being converted into Allow.
-
-## Not implemented
-
-Malformed policy semantics, Conditions, permission boundaries, session policies, SCPs, resource policies, service-specific authorization, and complete cross-account evaluation are not implemented in the live runtime. Full AssumeRole authorization is not claimed; trust fixtures are currently used to test normalization and uncertainty handling.
-
-The live AWS collector does not yet collect IAM users, roles, managed policies, inline policies, or instance profiles. The replay collector models their response shape for offline verification only.
-
-This is not AWS IAM simulator parity. Unsupported semantics must never silently become ALLOW.
+REPLAY_VERIFIED covers deterministic modeled responses, including URL encoding and contradiction cases. LIVE_AWS_IMPLEMENTED means the SDK adapter exists; LIVE_AWS_UNVERIFIED remains the honest status until an authorized AWS account is used. This is not AWS IAM simulator parity or full AssumeRole authorization.
