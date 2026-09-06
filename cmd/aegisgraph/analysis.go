@@ -2,6 +2,7 @@ package main
 
 import (
 	"sort"
+	"strings"
 )
 
 func analyzeSnapshot(input Snapshot) Snapshot {
@@ -41,7 +42,7 @@ func analyzeSnapshot(input Snapshot) Snapshot {
 		for _,targetKey:=range targetKeys {
 			target:=nodes[targetKey]
 			if !hasSupportedAccess(role,"s3:GetObject",resourceARN(target)) { continue }
-			evidence:=append([]string{},networkEvidence...)
+			evidence:=[]string{"Internet entry: "+strings.Join(networkEvidence,"; ")}
 			evidence=append(evidence,"Execution transition: "+workload.Key+" RUNS_AS "+role.Key)
 			evidence=append(evidence,"Capability transition: supported IAM Allow reaches "+target.Key)
 			out.Paths=append(out.Paths,Path{"path:"+workload.Key+":"+target.Key,"Internet to sensitive resource",98,[]string{"external:internet",workload.Key,role.Key,target.Key},evidence})
