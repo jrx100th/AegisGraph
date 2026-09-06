@@ -128,6 +128,7 @@ func migrate(db *sql.DB) error {
 		"CREATE TABLE IF NOT EXISTS findings(id INTEGER PRIMARY KEY AUTOINCREMENT, scan_id INTEGER NOT NULL REFERENCES scans(id) ON DELETE CASCADE, rule_id TEXT NOT NULL, severity TEXT NOT NULL, title TEXT NOT NULL, node_key TEXT NOT NULL, rationale TEXT NOT NULL, evidence TEXT NOT NULL, remediation TEXT NOT NULL, risk INTEGER NOT NULL)",
 		"CREATE TABLE IF NOT EXISTS attack_paths(id INTEGER PRIMARY KEY AUTOINCREMENT, scan_id INTEGER NOT NULL REFERENCES scans(id) ON DELETE CASCADE, path_key TEXT NOT NULL, category TEXT NOT NULL, score INTEGER NOT NULL, nodes TEXT NOT NULL, evidence TEXT NOT NULL, UNIQUE(scan_id,path_key))",
 		"CREATE TABLE IF NOT EXISTS scan_coverage(id INTEGER PRIMARY KEY AUTOINCREMENT, scan_id INTEGER NOT NULL REFERENCES scans(id) ON DELETE CASCADE, service TEXT NOT NULL, state TEXT NOT NULL, message TEXT NOT NULL)",
+        "CREATE TABLE IF NOT EXISTS finding_history(finding_key TEXT PRIMARY KEY, rule_id TEXT NOT NULL, node_key TEXT NOT NULL, first_seen TEXT NOT NULL, last_seen TEXT NOT NULL, resolved INTEGER NOT NULL, evidence TEXT NOT NULL)",
 		"CREATE INDEX IF NOT EXISTS idx_nodes_type ON nodes(node_type)",
 		"CREATE INDEX IF NOT EXISTS idx_nodes_key ON nodes(node_key)",
 		"CREATE INDEX IF NOT EXISTS idx_edges_source ON edges(source_key)",
@@ -189,14 +190,15 @@ func (s *Server) stats(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) scans(w http.ResponseWriter, r *http.Request) {
-	rows, err := s.db.Query("SELECT id,environment,status,created_at FROM scans ORDER BY id DESC LIMIT 50")
+	rows, err := s.db.Query("SELECT id,environment,status,account_id,started_at,ended_at,created_at FROM scans ORDER BY id DESC LIMIT 50")
 	if err != nil { writeError(w, 500, err); return }
 	defer rows.Close()
 	out := []map[string]any{}
 	for rows.Next() {
-		var id int; var env, status, created string
-		if err := rows.Scan(&id,&env,&status,&created); err != nil { writeError(w,500,err); return }
-		out = append(out,map[string]any{"id":id,"environment":env,"status":status,"created_at":created})
+		var id int
+		var env, status, account, started, ended, created string
+		if err := rows.Scan(&id,&env,&status,&account,&started,&ended,&created); err != nil { writeError(w,500,err); return }
+		out = append(out,map[string]any{"id":id,"environment":env,"status":status,"account_id":account,"started_at":started,"ended_at":ended,"created_at":created})
 	}
 	writeJSON(w,http.StatusOK,out)
 }
@@ -216,9 +218,10 @@ func (s *Server) replayLoad(w http.ResponseWriter, r *http.Request) {
 	result,err:=RunReplayFixture(r.Context(),http.MaxBytesReader(w,r.Body,maxReplayFixtureBytes))
 	if err!=nil { writeJSON(w,http.StatusBadRequest,map[string]any{"status":"FAILED","message":"Replay fixture rejected.","error":err.Error()}); return }
 	result.Snapshot.Environment="replay"
-	id,err:=s.persist(result.Snapshot)
+	id,err:=s.persistWithStatus(result.Snapshot,result.Status)
 	if err!=nil { writeError(w,500,err); return }
 	status:=result.Status
+	if status=="" { status=result.Snapshot.Status }
 	if status=="" { status="PARTIAL" }
 	writeJSON(w,http.StatusOK,map[string]any{"scan_id":id,"environment":"replay","status":status,"coverage":result.Snapshot.Coverage,"assets":len(result.Snapshot.Nodes),"findings":len(result.Snapshot.Findings),"attack_paths":len(result.Snapshot.Paths)})
 }
@@ -228,9 +231,11 @@ func (s *Server) awsScan(w http.ResponseWriter, r *http.Request) {
 	ctx,cancel:=context.WithTimeout(r.Context(),10*time.Minute); defer cancel()
 	snapshot,err:=collectAWS(ctx)
 	if err!=nil { writeJSON(w,http.StatusBadGateway,map[string]any{"status":"FAILED","message":"AWS discovery failed before a complete snapshot could be persisted.","error":err.Error()}); return }
-	id,err:=s.persist(snapshot)
+	id,err:=s.persistWithStatus(snapshot,snapshot.Status)
 	if err!=nil { writeError(w,500,err); return }
-	writeJSON(w,http.StatusOK,map[string]any{"scan_id":id,"environment":"aws","status":"PARTIAL","coverage":snapshot.Coverage,"assets":len(snapshot.Nodes),"message":"AWS inventory is intentionally partial; network/IAM findings are not asserted by this collector yet."})
+	status:=snapshot.Status
+	if status=="" { status="PARTIAL" }
+	writeJSON(w,http.StatusOK,map[string]any{"scan_id":id,"environment":"aws","status":status,"coverage":snapshot.Coverage,"assets":len(snapshot.Nodes),"message":"LIVE_AWS_IMPLEMENTED + LIVE_AWS_UNVERIFIED; live validation requires an authorized AWS account."})
 }
 
 func (s *Server) assets(w http.ResponseWriter, r *http.Request) {
@@ -327,22 +332,48 @@ func (s *Server) frontend() http.Handler {
 }
 
 func (s *Server) persist(snapshot Snapshot) (int64,error) {
+	status:=snapshot.Status
+	if status=="" { status="COMPLETE" }
+	return s.persistWithStatus(snapshot,status)
+}
+
+func (s *Server) persistWithStatus(snapshot Snapshot,status string) (int64,error) {
+	if status!="COMPLETE" && status!="PARTIAL" && status!="FAILED" && status!="RUNNING" && status!="PENDING" { status="FAILED" }
 	tx,err:=s.db.BeginTx(context.Background(),nil); if err!=nil{return 0,err}
 	defer tx.Rollback()
-	for _,table:=range []string{"findings","attack_paths","edges","nodes","scan_coverage","scans"} {
+	now:=time.Now().UTC().Format(time.RFC3339)
+	started:=snapshot.StartedAt; if started=="" { started=now }
+	ended:=snapshot.EndedAt; if ended=="" && status!="RUNNING" && status!="PENDING" { ended=now }
+	res,err:=tx.Exec("INSERT INTO scans(environment,status,account_id,started_at,ended_at,created_at) VALUES(?,?,?,?,?,?)",snapshot.Environment,status,snapshot.Account,started,ended,now)
+	if err!=nil{return 0,err}
+	scanID,err:=res.LastInsertId();if err!=nil{return 0,err}
+	for _,c:=range snapshot.Coverage {
+		if _,err:=tx.Exec("INSERT INTO scan_coverage(scan_id,service,state,message) VALUES(?,?,?,?)",scanID,c.Service,c.State,c.Message);err!=nil{return 0,err}
+	}
+	if status!="COMPLETE" { return scanID,tx.Commit() }
+
+	for _,table:=range []string{"findings","attack_paths","edges","nodes"} {
 		if _,err:=tx.Exec("DELETE FROM "+table);err!=nil{return 0,err}
 	}
-	now:=time.Now().UTC().Format(time.RFC3339)
-	res,err:=tx.Exec("INSERT INTO scans(environment,status,created_at) VALUES(?,?,?)",snapshot.Environment,"COMPLETE",now);if err!=nil{return 0,err}
-	scanID,err:=res.LastInsertId();if err!=nil{return 0,err}
+	if _,err:=tx.Exec("UPDATE finding_history SET resolved=1");err!=nil{return 0,err}
 	for _,n:=range snapshot.Nodes {
 		props,_:=json.Marshal(map[string]any{"public_ip":n.PublicIP,"public_known":n.PublicKnown,"route_to_internet_gateway":n.RouteIGW,"route_known":n.RouteKnown,"sensitive":n.Sensitive,"encrypted":n.Encrypted,"encryption_known":n.EncryptionKnown,"policies":n.Policies,"ingress":n.Ingress,"metadata":n.Metadata})
 		if _,err:=tx.Exec("INSERT INTO nodes(scan_id,node_key,node_type,name,account_id,region,properties) VALUES(?,?,?,?,?,?,?)",scanID,n.Key,n.Type,n.Name,n.Account,n.Region,string(props));err!=nil{return 0,err}
 	}
-	for _,e:=range snapshot.Edges { if _,err:=tx.Exec("INSERT INTO edges(scan_id,source_key,destination_key,edge_type,evidence) VALUES(?,?,?,?,?)",scanID,e.From,e.To,e.Type,e.Evidence);err!=nil{return 0,err} }
-	for _,f:=range snapshot.Findings { ev,_:=json.Marshal(f.Evidence); if _,err:=tx.Exec("INSERT INTO findings(scan_id,rule_id,severity,title,node_key,rationale,evidence,remediation,risk) VALUES(?,?,?,?,?,?,?,?,?)",scanID,f.RuleID,f.Severity,f.Title,f.NodeKey,f.Rationale,string(ev),f.Remediation,f.Risk);err!=nil{return 0,err} }
-	for _,p:=range snapshot.Paths { ns,_:=json.Marshal(p.Nodes);ev,_:=json.Marshal(p.Evidence);if _,err:=tx.Exec("INSERT INTO attack_paths(scan_id,path_key,category,score,nodes,evidence) VALUES(?,?,?,?,?,?)",scanID,p.ID,p.Category,p.Score,string(ns),string(ev));err!=nil{return 0,err} }
-	for _,c:=range snapshot.Coverage { if _,err:=tx.Exec("INSERT INTO scan_coverage(scan_id,service,state,message) VALUES(?,?,?,?)",scanID,c.Service,c.State,c.Message);err!=nil{return 0,err} }
+	for _,e:=range snapshot.Edges {
+		if _,err:=tx.Exec("INSERT INTO edges(scan_id,source_key,destination_key,edge_type,evidence) VALUES(?,?,?,?,?)",scanID,e.From,e.To,e.Type,e.Evidence);err!=nil{return 0,err}
+	}
+	for _,f:=range snapshot.Findings {
+		ev,_:=json.Marshal(f.Evidence)
+		if _,err:=tx.Exec("INSERT INTO findings(scan_id,rule_id,severity,title,node_key,rationale,evidence,remediation,risk) VALUES(?,?,?,?,?,?,?,?,?)",scanID,f.RuleID,f.Severity,f.Title,f.NodeKey,f.Rationale,string(ev),f.Remediation,f.Risk);err!=nil{return 0,err}
+		key:=f.RuleID+"|"+f.NodeKey
+		if _,err:=tx.Exec("INSERT INTO finding_history(finding_key,rule_id,node_key,first_seen,last_seen,resolved,evidence) VALUES(?,?,?,?,?,?,?) ON CONFLICT(finding_key) DO UPDATE SET last_seen=excluded.last_seen,resolved=0,evidence=excluded.evidence",key,f.RuleID,f.NodeKey,now,now,0,string(ev));err!=nil{return 0,err}
+	}
+	for _,p:=range snapshot.Paths {
+		ns,_:=json.Marshal(p.Nodes);ev,_:=json.Marshal(p.Evidence)
+		if _,err:=tx.Exec("INSERT INTO attack_paths(scan_id,path_key,category,score,nodes,evidence) VALUES(?,?,?,?,?,?)",scanID,p.ID,p.Category,p.Score,string(ns),string(ev));err!=nil{return 0,err}
+	}
+	if _,err:=tx.Exec("INSERT INTO current_scan(id,scan_id) VALUES(1,?) ON CONFLICT(id) DO UPDATE SET scan_id=excluded.scan_id",scanID);err!=nil{return 0,err}
 	return scanID,tx.Commit()
 }
 
