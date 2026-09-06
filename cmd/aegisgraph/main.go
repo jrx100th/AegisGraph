@@ -143,6 +143,7 @@ func (s *Server) routes() http.Handler {
 	mux.HandleFunc("/api/stats", s.stats)
 	mux.HandleFunc("/api/scans", s.scans)
 	mux.HandleFunc("/api/demo/load", s.demoLoad)
+	mux.HandleFunc("/api/replay/load", s.replayLoad)
 	mux.HandleFunc("/api/assets", s.assets)
 	mux.HandleFunc("/api/graph", s.graph)
 	mux.HandleFunc("/api/findings", s.findings)
@@ -198,6 +199,18 @@ func (s *Server) demoLoad(w http.ResponseWriter, r *http.Request) {
 	id, err := s.persist(snapshot)
 	if err != nil { writeError(w,500,err); return }
 	writeJSON(w,http.StatusOK,map[string]any{"scan_id":id,"environment":env,"status":"COMPLETE","findings":len(snapshot.Findings),"attack_paths":len(snapshot.Paths)})
+}
+
+func (s *Server) replayLoad(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost { writeError(w,405,errors.New("POST required")); return }
+	result,err:=RunReplayFixture(r.Context(),http.MaxBytesReader(w,r.Body,maxReplayFixtureBytes))
+	if err!=nil { writeJSON(w,http.StatusBadRequest,map[string]any{"status":"FAILED","message":"Replay fixture rejected.","error":err.Error()}); return }
+	result.Snapshot.Environment="replay"
+	id,err:=s.persist(result.Snapshot)
+	if err!=nil { writeError(w,500,err); return }
+	status:=result.Status
+	if status=="" { status="PARTIAL" }
+	writeJSON(w,http.StatusOK,map[string]any{"scan_id":id,"environment":"replay","status":status,"coverage":result.Snapshot.Coverage,"assets":len(result.Snapshot.Nodes),"findings":len(result.Snapshot.Findings),"attack_paths":len(result.Snapshot.Paths)})
 }
 
 func (s *Server) awsScan(w http.ResponseWriter, r *http.Request) {
