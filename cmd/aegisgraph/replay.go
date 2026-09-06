@@ -120,6 +120,8 @@ func collectReplay(ctx context.Context,client ReplayClient) (ReplayResult,error)
 	for {
 		iamAttempted=true;page,e:=client.ListIAM(ctx,iamToken)
 		if e!=nil {partial=true;out.Coverage=append(out.Coverage,Coverage{"iam","PARTIAL",e.Error()});break}
+		for _,user:=range page.Users { normalizeUser(account,user,&out) }
+		for _,profile:=range page.InstanceProfiles { normalizeInstanceProfile(account,profile,&out) }
 		for _,role:=range page.Roles {
 			if role.Malformed || role.UnsupportedCondition { partial=true; out.Coverage=append(out.Coverage,Coverage{"iam","PARTIAL","Malformed or unsupported role policy semantics"}); role.Policies=nil }
 			normalizeRole(account,role,&out)
