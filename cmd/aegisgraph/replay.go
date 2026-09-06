@@ -325,7 +325,7 @@ func makeReplayScenario(name string) ReplayScenario {
 	case "lambda-execution-role","lambda-no-vpc","lambda-vpc","lambda-missing-role","lambda-unknown-exposure":c.LambdaPages["ap-south-1"]=[]ReplayLambdaPage{{Functions:[]ReplayLambda{{ID:"arn:aws:lambda:ap-south-1:111111111111:function:lab",Name:"lab",RoleName:"demo-role"}}}}
 	case "lambda-related":makePublicSSH(c);c.LambdaPages["ap-south-1"]=[]ReplayLambdaPage{{Functions:[]ReplayLambda{{ID:"arn:aws:lambda:ap-south-1:111111111111:function:lab",Name:"lab",RoleName:"demo-role"}}}}
 	case "equivalent-access-denied":c.IAMPages=[]ReplayIAMPage{{ErrorCode:"AccessDenied"}};s.ExpectPartial=true
-	case "multi-page-late-risk","managed-inline-risk","role-chain-risk","equivalent-pagination","equivalent-adapter","lambda-related","cross-account-isolation":makePublicSSH(c)
+	case "multi-page-late-risk","managed-inline-risk","role-chain-risk","equivalent-pagination","equivalent-adapter","cross-account-isolation":makePublicSSH(c)
 	case "managed-policy-default-version":addWildcardAllow(c);s.ExpectRule="AG-IAM-001"
 	case "url-encoded-policy","mixed-inline-managed":addSensitiveAllow(c)
 	case "malformed-url-encoding":c.IAMPages[0].Roles[0].Malformed=true;s.ExpectPartial=true
